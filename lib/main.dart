@@ -19,6 +19,7 @@ import 'screens/category/category_screen.dart';
 import 'screens/cart/cart_screen.dart';
 import 'screens/wishlist/wishlist_screen.dart';
 import 'screens/profile/profile_screen.dart';
+import 'l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,6 +68,9 @@ class MyApp extends StatelessWidget {
         title: 'PrestaShop Mobile App',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('fr', ''), // Default to French
         home: const MainScreen(),
       ),
     );
@@ -93,6 +97,8 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       body: _screens[_currentIndex],
       bottomNavigationBar: Container(
@@ -112,31 +118,31 @@ class _MainScreenState extends State<MainScreen> {
               _currentIndex = index;
             });
           },
-          items: const [
+          items: [
             BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Home',
+              icon: const Icon(Icons.home_outlined),
+              activeIcon: const Icon(Icons.home),
+              label: l10n?.home ?? 'Accueil',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.category_outlined),
-              activeIcon: Icon(Icons.category),
-              label: 'Categories',
+              icon: const Icon(Icons.category_outlined),
+              activeIcon: const Icon(Icons.category),
+              label: l10n?.categories ?? 'Catégories',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_bag_outlined),
-              activeIcon: Icon(Icons.shopping_bag),
-              label: 'Cart',
+              icon: const Icon(Icons.shopping_bag_outlined),
+              activeIcon: const Icon(Icons.shopping_bag),
+              label: l10n?.cart ?? 'Panier',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.favorite_outline),
-              activeIcon: Icon(Icons.favorite),
-              label: 'Wishlist',
+              icon: const Icon(Icons.favorite_outline),
+              activeIcon: const Icon(Icons.favorite),
+              label: l10n?.wishlist ?? 'Liste de souhaits',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profile',
+              icon: const Icon(Icons.person_outline),
+              activeIcon: const Icon(Icons.person),
+              label: l10n?.profile ?? 'Profil',
             ),
           ],
         ),

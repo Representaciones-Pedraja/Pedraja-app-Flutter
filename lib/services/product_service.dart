@@ -12,6 +12,7 @@ class ProductService {
     int? offset,
     String? categoryId,
     String? searchQuery,
+    bool filterInStock = true, // Filter only in-stock products by default
   }) async {
     try {
       final queryParams = <String, String>{
@@ -28,19 +29,25 @@ class ProductService {
       );
 
       // Handle both single product and array of products
+      List<Product> products = [];
       if (response['products'] != null) {
         final productsData = response['products'];
         if (productsData is List) {
-          return productsData
+          products = productsData
               .map((productJson) => Product.fromJson(productJson))
               .toList();
         } else if (productsData is Map) {
           // Single product wrapped in products key
-          return [Product.fromJson(productsData as Map<String, dynamic>)];
+          products = [Product.fromJson(productsData as Map<String, dynamic>)];
         }
       }
 
-      return [];
+      // Filter out-of-stock products if requested
+      if (filterInStock) {
+        products = products.where((product) => product.inStock).toList();
+      }
+
+      return products;
     } catch (e) {
       throw Exception('Failed to fetch products: $e');
     }
@@ -63,17 +70,17 @@ class ProductService {
     }
   }
 
-  Future<List<Product>> searchProducts(String query) async {
-    return getProducts(searchQuery: query);
+  Future<List<Product>> searchProducts(String query, {bool filterInStock = true}) async {
+    return getProducts(searchQuery: query, filterInStock: filterInStock);
   }
 
-  Future<List<Product>> getProductsByCategory(String categoryId) async {
-    return getProducts(categoryId: categoryId);
+  Future<List<Product>> getProductsByCategory(String categoryId, {bool filterInStock = true}) async {
+    return getProducts(categoryId: categoryId, filterInStock: filterInStock);
   }
 
-  Future<List<Product>> getFeaturedProducts() async {
+  Future<List<Product>> getFeaturedProducts({bool filterInStock = true}) async {
     // Assuming featured products can be filtered by a specific attribute
     // This implementation may vary based on PrestaShop configuration
-    return getProducts(limit: 10);
+    return getProducts(limit: 10, filterInStock: filterInStock);
   }
 }
