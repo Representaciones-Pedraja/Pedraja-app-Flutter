@@ -177,12 +177,24 @@ class AppLocalizations {
   String get shopNow => translate('shopNow');
 
   String get filters => translate('filters');
+  String get applyFilters => translate('applyFilters');
   String get sortBy => translate('sortBy');
   String get priceRange => translate('priceRange');
   String get minPrice => translate('minPrice');
   String get maxPrice => translate('maxPrice');
   String get apply => translate('apply');
   String get reset => translate('reset');
+
+  String get brand => translate('brand');
+  String get color => translate('color');
+  String get size => translate('size');
+  String get availability => translate('availability');
+  String get onSale => translate('onSale');
+
+  String get newest => translate('newest');
+  String get priceLowToHigh => translate('priceLowToHigh');
+  String get priceHighToLow => translate('priceHighToLow');
+  String get popular => translate('popular');
 
   String get discount => translate('discount');
   String get off => translate('off');
