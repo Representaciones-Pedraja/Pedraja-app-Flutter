@@ -134,12 +134,24 @@
   "shopNow": "Acheter maintenant",
 
   "filters": "Filtres",
+  "applyFilters": "Appliquer les filtres",
   "sortBy": "Trier par",
-  "priceRange": "Gamme de prix",
+  "priceRange": "Fourchette de prix",
   "minPrice": "Prix minimum",
   "maxPrice": "Prix maximum",
   "apply": "Appliquer",
   "reset": "Réinitialiser",
+
+  "brand": "Marque",
+  "color": "Couleur",
+  "size": "Taille",
+  "availability": "Disponibilité",
+  "onSale": "En promotion",
+
+  "newest": "Plus récent",
+  "priceLowToHigh": "Prix croissant",
+  "priceHighToLow": "Prix décroissant",
+  "popular": "Populaire",
 
   "discount": "Réduction",
   "off": "de réduction",

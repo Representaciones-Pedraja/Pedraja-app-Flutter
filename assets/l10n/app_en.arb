@@ -134,12 +134,24 @@
   "shopNow": "Shop Now",
 
   "filters": "Filters",
+  "applyFilters": "Apply Filters",
   "sortBy": "Sort By",
   "priceRange": "Price Range",
   "minPrice": "Min Price",
   "maxPrice": "Max Price",
   "apply": "Apply",
   "reset": "Reset",
+
+  "brand": "Brand",
+  "color": "Color",
+  "size": "Size",
+  "availability": "Availability",
+  "onSale": "On Sale",
+
+  "newest": "Newest",
+  "priceLowToHigh": "Price: Low to High",
+  "priceHighToLow": "Price: High to Low",
+  "popular": "Popular",
 
   "discount": "Discount",
   "off": "off",
