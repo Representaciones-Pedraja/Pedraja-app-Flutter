@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/cart_provider.dart';
-import '../../models/combination.dart';
+import '../../models/product_detail.dart';
+import '../../models/product_option.dart';
+import '../../services/api_service.dart';
+import '../../services/product_option_service.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/error_widget.dart';
 import '../../config/app_theme.dart';
@@ -24,9 +27,14 @@ class ProductDetailScreen extends StatefulWidget {
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _quantity = 1;
   int _currentImageIndex = 0;
-  Combination? _selectedCombination;
+  int? _selectedCombinationIndex;
   bool _isDescriptionExpanded = false;
   final PageController _imagePageController = PageController();
+
+  // Resolved attribute data
+  Map<String, ProductOptionValue> _optionValues = {};
+  Map<String, ProductOption> _attributeGroups = {};
+  bool _attributesLoaded = false;
 
   @override
   void initState() {
@@ -41,6 +49,81 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void dispose() {
     _imagePageController.dispose();
     super.dispose();
+  }
+
+  /// Fetch and resolve attribute names for combinations
+  /// Follows: product_option_value -> product_option (attribute group)
+  Future<void> _loadAttributeData(List<dynamic> combinations) async {
+    if (_attributesLoaded || combinations.isEmpty) return;
+
+    try {
+      final apiService = ApiService(
+        baseUrl: ApiConfig.baseUrl,
+        apiKey: ApiConfig.apiKey,
+      );
+      final optionService = ProductOptionService(apiService);
+
+      // Collect all product_option_value IDs from all combinations
+      final allOptionValueIds = <String>{};
+      for (final combo in combinations) {
+        if (combo.productOptionValueIds != null) {
+          allOptionValueIds.addAll(combo.productOptionValueIds);
+        }
+      }
+
+      if (allOptionValueIds.isEmpty) {
+        setState(() => _attributesLoaded = true);
+        return;
+      }
+
+      // Batch fetch all product option values
+      final optionValues = await optionService.getProductOptionValues(
+        allOptionValueIds.toList(),
+      );
+
+      // Collect all attribute group IDs
+      final attributeGroupIds = optionValues.values
+          .map((v) => v.optionId)
+          .toSet()
+          .toList();
+
+      // Batch fetch all attribute groups
+      final attributeGroups = await optionService.getProductOptions(
+        attributeGroupIds,
+      );
+
+      setState(() {
+        _optionValues = optionValues;
+        _attributeGroups = attributeGroups;
+        _attributesLoaded = true;
+      });
+    } catch (e) {
+      debugPrint('Error loading attribute data: $e');
+      setState(() => _attributesLoaded = true);
+    }
+  }
+
+  /// Get resolved attribute info for a combination
+  List<ResolvedAttribute> _getResolvedAttributes(dynamic combination) {
+    final result = <ResolvedAttribute>[];
+
+    if (combination.productOptionValueIds == null) return result;
+
+    for (final valueId in combination.productOptionValueIds) {
+      final optionValue = _optionValues[valueId];
+      if (optionValue != null) {
+        final group = _attributeGroups[optionValue.optionId];
+        result.add(ResolvedAttribute(
+          groupId: optionValue.optionId,
+          groupName: group?.publicName ?? group?.name ?? '',
+          valueId: valueId,
+          valueName: optionValue.name,
+          color: optionValue.color,
+        ));
+      }
+    }
+
+    return result;
   }
 
   @override
@@ -90,13 +173,21 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
           final combinations = productProvider.productCombinations;
 
-          // Set default combination
-          if (_selectedCombination == null && combinations.isNotEmpty) {
-            _selectedCombination = combinations.firstWhere(
-              (c) => c.defaultOn,
-              orElse: () => combinations.first,
-            );
+          // Load attribute data when combinations are available
+          if (combinations.isNotEmpty && !_attributesLoaded) {
+            _loadAttributeData(combinations);
           }
+
+          // Set default combination index
+          if (_selectedCombinationIndex == null && combinations.isNotEmpty) {
+            _selectedCombinationIndex = combinations.indexWhere((c) => c.defaultOn);
+            if (_selectedCombinationIndex == -1) _selectedCombinationIndex = 0;
+          }
+
+          final selectedCombination = _selectedCombinationIndex != null &&
+              _selectedCombinationIndex! < combinations.length
+              ? combinations[_selectedCombinationIndex!]
+              : null;
 
           return Stack(
             children: [
@@ -130,8 +221,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             name: product.name,
                             manufacturerName: product.manufacturerName,
                             price: product.price,
-                            finalPrice: _selectedCombination != null
-                                ? product.price + _selectedCombination!.priceImpact
+                            finalPrice: selectedCombination != null
+                                ? product.price + selectedCombination.priceImpact
                                 : product.finalPrice,
                             isOnSale: product.isOnSale,
                             discountPercentage: product.calculatedDiscountPercentage,
@@ -140,21 +231,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           const SizedBox(height: 24),
 
                           // Variations (if available)
-                          if (combinations.isNotEmpty)
+                          if (combinations.isNotEmpty && _attributesLoaded)
                             _VariationSelector(
                               combinations: combinations,
-                              selectedCombination: _selectedCombination,
-                              onCombinationSelected: (combination) {
+                              selectedIndex: _selectedCombinationIndex ?? 0,
+                              optionValues: _optionValues,
+                              attributeGroups: _attributeGroups,
+                              onCombinationSelected: (index) {
                                 setState(() {
-                                  _selectedCombination = combination;
+                                  _selectedCombinationIndex = index;
                                 });
                               },
                             ),
 
                           // Stock Status
                           _StockStatus(
-                            inStock: _selectedCombination?.inStock ?? product.inStock,
-                            quantity: _selectedCombination?.quantity ?? product.quantity,
+                            inStock: selectedCombination?.inStock ?? product.inStock,
+                            quantity: selectedCombination?.quantity ?? product.quantity,
                           ),
 
                           const SizedBox(height: 24),
@@ -199,8 +292,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 right: 0,
                 child: _AddToCartBar(
                   quantity: _quantity,
-                  maxQuantity: _selectedCombination?.quantity ?? product.quantity,
-                  inStock: _selectedCombination?.inStock ?? product.inStock,
+                  maxQuantity: selectedCombination?.quantity ?? product.quantity,
+                  inStock: selectedCombination?.inStock ?? product.inStock,
                   onQuantityChanged: (newQuantity) {
                     setState(() {
                       _quantity = newQuantity;
@@ -214,7 +307,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     cartProvider.addItem(
                       product,
                       quantity: _quantity,
-                      variantId: _selectedCombination?.id,
+                      variantId: selectedCombination?.id,
                     );
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -508,45 +601,58 @@ class _PriceBlock extends StatelessWidget {
 // ============================================================================
 
 class _VariationSelector extends StatelessWidget {
-  final List<Combination> combinations;
-  final Combination? selectedCombination;
-  final ValueChanged<Combination> onCombinationSelected;
+  final List<dynamic> combinations;
+  final int selectedIndex;
+  final Map<String, ProductOptionValue> optionValues;
+  final Map<String, ProductOption> attributeGroups;
+  final ValueChanged<int> onCombinationSelected;
 
   const _VariationSelector({
     required this.combinations,
-    this.selectedCombination,
+    required this.selectedIndex,
+    required this.optionValues,
+    required this.attributeGroups,
     required this.onCombinationSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Group attributes by type
-    final Map<String, Set<String>> attributeGroups = {};
-    final Map<String, String> selectedAttributes = {};
+    // Group attributes by group name
+    final Map<String, Set<String>> groupedAttributes = {};
+    final Map<String, String> selectedValues = {};
 
-    // Extract unique attributes
+    // Extract unique attributes from all combinations
     for (final combo in combinations) {
-      for (final attr in combo.attributes) {
-        final groupName = attr.name.isNotEmpty ? attr.name : 'Option';
-        attributeGroups.putIfAbsent(groupName, () => {}).add(attr.value);
+      for (final valueId in combo.productOptionValueIds) {
+        final optionValue = optionValues[valueId];
+        if (optionValue != null) {
+          final group = attributeGroups[optionValue.optionId];
+          final groupName = group?.publicName ?? group?.name ?? 'Option';
+          groupedAttributes.putIfAbsent(groupName, () => {}).add(optionValue.name);
+        }
       }
     }
 
-    // Get selected attributes
-    if (selectedCombination != null) {
-      for (final attr in selectedCombination!.attributes) {
-        final groupName = attr.name.isNotEmpty ? attr.name : 'Option';
-        selectedAttributes[groupName] = attr.value;
+    // Get selected attribute values
+    if (selectedIndex < combinations.length) {
+      final selectedCombo = combinations[selectedIndex];
+      for (final valueId in selectedCombo.productOptionValueIds) {
+        final optionValue = optionValues[valueId];
+        if (optionValue != null) {
+          final group = attributeGroups[optionValue.optionId];
+          final groupName = group?.publicName ?? group?.name ?? 'Option';
+          selectedValues[groupName] = optionValue.name;
+        }
       }
     }
 
-    if (attributeGroups.isEmpty) {
+    if (groupedAttributes.isEmpty) {
       return const SizedBox.shrink();
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: attributeGroups.entries.map((entry) {
+      children: groupedAttributes.entries.map((entry) {
         final groupName = entry.key;
         final values = entry.value.toList()..sort();
         final isColorGroup = _isColorAttribute(groupName);
@@ -566,10 +672,10 @@ class _VariationSelector extends StatelessWidget {
                       color: AppTheme.primaryBlack,
                     ),
                   ),
-                  if (selectedAttributes[groupName] != null) ...[
+                  if (selectedValues[groupName] != null) ...[
                     const SizedBox(width: 8),
                     Text(
-                      selectedAttributes[groupName]!,
+                      selectedValues[groupName]!,
                       style: TextStyle(
                         fontSize: 14,
                         color: AppTheme.secondaryGrey,
@@ -580,9 +686,9 @@ class _VariationSelector extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               if (isColorGroup)
-                _buildColorSwatches(values, selectedAttributes[groupName], groupName)
+                _buildColorSwatches(values, selectedValues[groupName], groupName)
               else
-                _buildSizePills(values, selectedAttributes[groupName], groupName),
+                _buildSizePills(values, selectedValues[groupName], groupName),
             ],
           ),
         );
@@ -605,12 +711,12 @@ class _VariationSelector extends StatelessWidget {
       runSpacing: 10,
       children: values.map((value) {
         final isSelected = value == selectedValue;
-        final combination = _findCombinationWithAttribute(groupName, value);
-        final isAvailable = combination?.inStock ?? false;
+        final comboIndex = _findCombinationWithAttribute(groupName, value);
+        final isAvailable = comboIndex != null && combinations[comboIndex].inStock;
 
         return GestureDetector(
-          onTap: combination != null
-              ? () => onCombinationSelected(combination)
+          onTap: comboIndex != null
+              ? () => onCombinationSelected(comboIndex)
               : null,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -657,13 +763,13 @@ class _VariationSelector extends StatelessWidget {
       runSpacing: 12,
       children: values.map((value) {
         final isSelected = value == selectedValue;
-        final combination = _findCombinationWithAttribute(groupName, value);
-        final isAvailable = combination?.inStock ?? false;
+        final comboIndex = _findCombinationWithAttribute(groupName, value);
+        final isAvailable = comboIndex != null && combinations[comboIndex].inStock;
         final color = _getColorFromName(value);
 
         return GestureDetector(
-          onTap: combination != null
-              ? () => onCombinationSelected(combination)
+          onTap: comboIndex != null
+              ? () => onCombinationSelected(comboIndex)
               : null,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -705,12 +811,17 @@ class _VariationSelector extends StatelessWidget {
     );
   }
 
-  Combination? _findCombinationWithAttribute(String groupName, String value) {
-    for (final combo in combinations) {
-      for (final attr in combo.attributes) {
-        final attrGroupName = attr.name.isNotEmpty ? attr.name : 'Option';
-        if (attrGroupName == groupName && attr.value == value) {
-          return combo;
+  int? _findCombinationWithAttribute(String groupName, String value) {
+    for (int i = 0; i < combinations.length; i++) {
+      final combo = combinations[i];
+      for (final valueId in combo.productOptionValueIds) {
+        final optionValue = optionValues[valueId];
+        if (optionValue != null) {
+          final group = attributeGroups[optionValue.optionId];
+          final attrGroupName = group?.publicName ?? group?.name ?? 'Option';
+          if (attrGroupName == groupName && optionValue.name == value) {
+            return i;
+          }
         }
       }
     }
@@ -760,6 +871,23 @@ class _VariationSelector extends StatelessWidget {
     final luminance = color.computeLuminance();
     return luminance > 0.5;
   }
+}
+
+/// Helper class for resolved attribute data
+class ResolvedAttribute {
+  final String groupId;
+  final String groupName;
+  final String valueId;
+  final String valueName;
+  final String? color;
+
+  ResolvedAttribute({
+    required this.groupId,
+    required this.groupName,
+    required this.valueId,
+    required this.valueName,
+    this.color,
+  });
 }
 
 // ============================================================================

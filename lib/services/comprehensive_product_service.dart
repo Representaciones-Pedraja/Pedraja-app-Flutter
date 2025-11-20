@@ -9,14 +9,32 @@ import 'stock_service.dart';
 import 'combination_service.dart';
 import 'product_option_service.dart';
 
-/// Comprehensive product fetching service that handles:
-/// - Products with combinations (variations)
-/// - Accurate price calculations with combination impacts
-/// - Stock availability filtering
-/// - Optimized API calls with batching and caching
+/// Comprehensive product fetching service following PrestaShop webservice xlink:href pattern
 ///
-/// PrestaShop API Structure:
-/// Product → Combinations → Product Option Values → Product Options
+/// Data Flow (following xlink:href references):
+/// 1. Fetch Product with display=full
+///    - Get base price from product.price
+///    - Get default combination ID from cache_default_attribute
+///    - Get combination IDs from associations.combinations (just IDs with xlink:href)
+///
+/// 2. Fetch Combinations (batch by IDs)
+///    GET /api/combinations?filter[id]=[1|2|3|4|5]&display=full
+///    - Get price impact from combination.price (this is NOT final price!)
+///    - Get product_option_value IDs from associations.product_option_values
+///
+/// 3. Fetch Product Option Values (batch by IDs)
+///    GET /api/product_option_values?filter[id]=[1|2|3|4]&display=full
+///    - Get attribute value name (e.g., "S", "M", "L", "Red", "Blue")
+///    - Get id_attribute_group (points to product_options)
+///
+/// 4. Fetch Product Options / Attribute Groups (batch by IDs)
+///    GET /api/product_options?filter[id]=[1|2]&display=full
+///    - Get group name (e.g., "Size", "Color")
+///    - Get is_color_group flag
+///
+/// 5. Calculate Final Prices
+///    Final Price = Base Product Price + Combination Price Impact
+///
 class ComprehensiveProductService {
   final ApiService _apiService;
   late final StockService _stockService;
@@ -30,14 +48,10 @@ class ComprehensiveProductService {
     _productOptionService = ProductOptionService(_apiService);
   }
 
-  /// Get a single product with full details including combinations and resolved attributes
+  /// Get a single product with full details including resolved combinations
   ///
-  /// This fetches:
-  /// 1. Product with display=full
-  /// 2. All combinations for the product
-  /// 3. Product option values for each combination
-  /// 4. Product options (attribute groups) for names
-  /// 5. Stock for each combination
+  /// This follows the complete xlink:href chain:
+  /// Product → Combinations → Product Option Values → Product Options
   Future<ProductDetail> getProductWithFullDetails(String productId) async {
     try {
       // Step 1: Fetch product with full associations
@@ -52,7 +66,7 @@ class ComprehensiveProductService {
 
       ProductDetail product = ProductDetail.fromJson(response['product']);
 
-      // Step 2: If simple product, just get stock
+      // Step 2: Handle simple products (no combinations)
       if (product.isSimpleProduct) {
         final stock = await _stockService.getSimpleProductStock(productId);
         return product.copyWith(
@@ -67,49 +81,50 @@ class ComprehensiveProductService {
         return product;
       }
 
-      // Step 4: Get stock for all combinations
-      final stockMap = await _getStockForCombinations(productId, combinations);
-
-      // Step 5: Collect all option value IDs from combinations
-      final optionValueIds = <String>{};
+      // Step 4: Collect all product_option_value IDs from all combinations
+      final allOptionValueIds = <String>{};
       for (final combo in combinations) {
-        for (final attr in combo.attributes) {
-          optionValueIds.add(attr.id);
-        }
+        allOptionValueIds.addAll(combo.productOptionValueIds);
       }
 
-      // Step 6: Batch fetch option values
+      // Step 5: Batch fetch all product option values
       final optionValues = await _productOptionService.getProductOptionValues(
-        optionValueIds.toList(),
+        allOptionValueIds.toList(),
       );
 
-      // Step 7: Get option group IDs and fetch option groups
-      final optionGroupIds = optionValues.values
+      // Step 6: Collect all attribute group IDs (id_attribute_group)
+      final attributeGroupIds = optionValues.values
           .map((v) => v.optionId)
           .toSet()
           .toList();
-      final optionGroups = await _productOptionService.getProductOptions(optionGroupIds);
 
-      // Step 8: Build complete ProductCombination objects
-      final productCombinations = _buildProductCombinations(
+      // Step 7: Batch fetch all product options (attribute groups)
+      final attributeGroups = await _productOptionService.getProductOptions(
+        attributeGroupIds,
+      );
+
+      // Step 8: Get stock for all combinations
+      final stockMap = await _getStockMapForProduct(productId);
+
+      // Step 9: Build complete ProductCombination objects with resolved attributes
+      final productCombinations = _buildResolvedCombinations(
         combinations,
         product.basePrice,
         stockMap,
         optionValues,
-        optionGroups,
+        attributeGroups,
       );
 
-      // Step 9: Find default combination and calculate price range
-      final defaultCombo = productCombinations.firstWhere(
-        (c) => c.id == product.defaultCombinationId || c.isDefault,
-        orElse: () => productCombinations.first,
-      );
+      // Step 10: Find default combination and calculate price range
+      ProductCombination? defaultCombo;
+      if (productCombinations.isNotEmpty) {
+        defaultCombo = productCombinations.firstWhere(
+          (c) => c.id == product.defaultCombinationId || c.isDefault,
+          orElse: () => productCombinations.first,
+        );
+      }
 
-      final prices = productCombinations.map((c) => c.finalPrice).toList();
-      final priceRange = PriceRange(
-        min: prices.reduce((a, b) => a < b ? a : b),
-        max: prices.reduce((a, b) => a > b ? a : b),
-      );
+      final priceRange = _calculatePriceRange(product, productCombinations);
 
       return product.copyWith(
         combinations: productCombinations,
@@ -121,8 +136,7 @@ class ComprehensiveProductService {
     }
   }
 
-  /// Get multiple products with full details
-  /// Optimized with parallel fetching and batching
+  /// Get multiple products with full details (optimized with batching)
   Future<List<ProductDetail>> getProductsWithFullDetails(
     List<String> productIds, {
     bool resolveAttributes = true,
@@ -148,9 +162,8 @@ class ComprehensiveProductService {
       final combinationProducts = products.where((p) => !p.isSimpleProduct).toList();
 
       // Get stock for simple products
-      final simpleStockMap = await _stockService.getStockForProducts(
-        simpleProducts.map((p) => p.id).toList(),
-      );
+      final simpleProductIds = simpleProducts.map((p) => p.id).toList();
+      final simpleStockMap = await _stockService.getStockForProducts(simpleProductIds);
 
       // Update simple products with stock
       final updatedSimpleProducts = simpleProducts.map((product) {
@@ -167,51 +180,53 @@ class ComprehensiveProductService {
         return product.copyWith(simpleProductStock: simpleStock.quantity);
       }).toList();
 
-      // Get combinations for all combination products
-      final combinationProductIds = combinationProducts.map((p) => p.id).toList();
-      if (combinationProductIds.isEmpty) {
+      if (combinationProducts.isEmpty) {
         return updatedSimpleProducts;
       }
 
+      // Get all combinations for all combination products
+      final combinationProductIds = combinationProducts.map((p) => p.id).toList();
       final allCombinationsMap = await _combinationService.getCombinationsForProducts(
         combinationProductIds,
       );
 
-      // Get stock for all combinations
-      final allStockMap = await _stockService.getStockForProducts(combinationProductIds);
-
-      // Collect all option value IDs
+      // Collect ALL product_option_value IDs from ALL combinations
       final allOptionValueIds = <String>{};
       for (final combos in allCombinationsMap.values) {
         for (final combo in combos) {
-          for (final attr in combo.attributes) {
-            allOptionValueIds.add(attr.id);
-          }
+          allOptionValueIds.addAll(combo.productOptionValueIds);
         }
       }
 
       // Batch fetch option values and groups if needed
       Map<String, ProductOptionValue> optionValues = {};
-      Map<String, ProductOption> optionGroups = {};
+      Map<String, ProductOption> attributeGroups = {};
 
       if (resolveAttributes && allOptionValueIds.isNotEmpty) {
+        // Batch fetch all product option values
         optionValues = await _productOptionService.getProductOptionValues(
           allOptionValueIds.toList(),
         );
 
-        final optionGroupIds = optionValues.values
+        // Collect and batch fetch all attribute groups
+        final attributeGroupIds = optionValues.values
             .map((v) => v.optionId)
             .toSet()
             .toList();
-        optionGroups = await _productOptionService.getProductOptions(optionGroupIds);
+        attributeGroups = await _productOptionService.getProductOptions(
+          attributeGroupIds,
+        );
       }
 
-      // Build complete products with combinations
+      // Get stock for all combination products
+      final allStockMap = await _stockService.getStockForProducts(combinationProductIds);
+
+      // Build complete products with resolved combinations
       final updatedCombinationProducts = combinationProducts.map((product) {
         final combinations = allCombinationsMap[product.id] ?? [];
         final stockList = allStockMap[product.id] ?? [];
 
-        // Build stock map for this product's combinations
+        // Build stock map for this product
         final stockMap = <String, int>{};
         for (final stock in stockList) {
           if (stock.productAttributeId != '0') {
@@ -219,13 +234,13 @@ class ComprehensiveProductService {
           }
         }
 
-        // Build product combinations
-        final productCombinations = _buildProductCombinations(
+        // Build resolved combinations
+        final productCombinations = _buildResolvedCombinations(
           combinations,
           product.basePrice,
           stockMap,
           optionValues,
-          optionGroups,
+          attributeGroups,
         );
 
         if (productCombinations.isEmpty) {
@@ -238,11 +253,7 @@ class ComprehensiveProductService {
           orElse: () => productCombinations.first,
         );
 
-        final prices = productCombinations.map((c) => c.finalPrice).toList();
-        final priceRange = PriceRange(
-          min: prices.reduce((a, b) => a < b ? a : b),
-          max: prices.reduce((a, b) => a > b ? a : b),
-        );
+        final priceRange = _calculatePriceRange(product, productCombinations);
 
         return product.copyWith(
           combinations: productCombinations,
@@ -257,10 +268,10 @@ class ComprehensiveProductService {
     }
   }
 
-  /// Get products filtered by stock availability
-  /// Uses two-stage filtering for efficiency:
-  /// 1. Fetch stock records with quantity > 0
-  /// 2. Fetch only products that have stock
+  /// Get products with stock using two-stage filtering
+  ///
+  /// Stage 1: GET /api/stock_availables?display=[id_product]&filter[quantity]=[1,]
+  /// Stage 2: GET /api/products?filter[id]=[1|5|8|12|15]&display=full
   Future<List<ProductDetail>> getProductsWithStock({
     int? limit,
     int? offset,
@@ -277,7 +288,7 @@ class ComprehensiveProductService {
         return [];
       }
 
-      // Stage 2: Fetch products with those IDs
+      // Stage 2: Fetch only products with stock
       final productIdList = productIdsWithStock.toList();
 
       // Apply pagination
@@ -301,14 +312,7 @@ class ComprehensiveProductService {
     }
   }
 
-  /// Get products with combined filters
-  ///
-  /// Filters:
-  /// - categoryId: Filter by category
-  /// - minPrice/maxPrice: Filter by price range (accounts for combination prices)
-  /// - inStockOnly: Filter by stock availability
-  /// - manufacturerId: Filter by manufacturer
-  /// - attributeFilters: Filter by specific attributes (e.g., {"Size": "L", "Color": "Red"})
+  /// Get filtered products with full combination resolution
   Future<List<ProductDetail>> getFilteredProducts({
     String? categoryId,
     double? minPrice,
@@ -333,8 +337,8 @@ class ComprehensiveProductService {
           return [];
         }
       } else {
-        // Fetch all product IDs
-        productIds = await _fetchAllProductIds(
+        // Fetch product IDs with basic filters
+        productIds = await _fetchProductIds(
           categoryId: categoryId,
           manufacturerId: manufacturerId,
         );
@@ -350,11 +354,12 @@ class ComprehensiveProductService {
         resolveAttributes: resolveAttributes,
       );
 
-      // Apply filters
+      // Apply category filter
       if (categoryId != null) {
         products = products.where((p) => p.categoryId == categoryId).toList();
       }
 
+      // Apply manufacturer filter
       if (manufacturerId != null) {
         products = products.where((p) => p.manufacturerId == manufacturerId).toList();
       }
@@ -373,7 +378,7 @@ class ComprehensiveProductService {
         }).toList();
       }
 
-      // Apply in-stock filter again to catch any missed
+      // Apply in-stock filter
       if (inStockOnly) {
         products = products.where((p) => p.hasStock).toList();
       }
@@ -399,51 +404,15 @@ class ComprehensiveProductService {
     }
   }
 
-  /// Get products by price range that accounts for combination prices
-  Future<List<ProductDetail>> getProductsByPriceRange(
-    double minPrice,
-    double maxPrice, {
-    String? categoryId,
-    bool inStockOnly = false,
-    int? limit,
-    int? offset,
-  }) async {
-    return getFilteredProducts(
-      categoryId: categoryId,
-      minPrice: minPrice,
-      maxPrice: maxPrice,
-      inStockOnly: inStockOnly,
-      limit: limit,
-      offset: offset,
-    );
-  }
-
-  /// Get products by specific attribute values
-  ///
-  /// Example: getProductsByAttributes({"Size": "L", "Color": "Red"})
-  Future<List<ProductDetail>> getProductsByAttributes(
-    Map<String, String> attributeFilters, {
-    String? categoryId,
-    bool inStockOnly = false,
-    int? limit,
-    int? offset,
-  }) async {
-    return getFilteredProducts(
-      categoryId: categoryId,
-      attributeFilters: attributeFilters,
-      inStockOnly: inStockOnly,
-      limit: limit,
-      offset: offset,
-    );
-  }
-
-  /// Calculate the final price for a specific combination
+  /// Calculate final price for a combination
   /// Formula: Base Product Price + Combination Price Impact
-  double calculateCombinationPrice(double basePrice, double priceImpact) {
+  double calculateFinalPrice(double basePrice, double priceImpact) {
     return basePrice + priceImpact;
   }
 
-  // Private helper methods
+  // ============================================================================
+  // PRIVATE HELPER METHODS
+  // ============================================================================
 
   List<ProductDetail> _parseProductList(Map<String, dynamic> response) {
     if (response['products'] == null) return [];
@@ -466,10 +435,7 @@ class ComprehensiveProductService {
     return [];
   }
 
-  Future<Map<String, int>> _getStockForCombinations(
-    String productId,
-    List<Combination> combinations,
-  ) async {
+  Future<Map<String, int>> _getStockMapForProduct(String productId) async {
     final stocks = await _stockService.getStockByProduct(productId);
     final stockMap = <String, int>{};
 
@@ -482,47 +448,71 @@ class ComprehensiveProductService {
     return stockMap;
   }
 
-  List<ProductCombination> _buildProductCombinations(
+  /// Build resolved ProductCombination objects with attribute names
+  ///
+  /// This takes the raw combinations (with just IDs) and resolves them
+  /// to full attribute information using the fetched option values and groups
+  List<ProductCombination> _buildResolvedCombinations(
     List<Combination> combinations,
     double basePrice,
     Map<String, int> stockMap,
     Map<String, ProductOptionValue> optionValues,
-    Map<String, ProductOption> optionGroups,
+    Map<String, ProductOption> attributeGroups,
   ) {
     return combinations.map((combo) {
-      // Resolve attributes
-      final attributes = combo.attributes.map((attr) {
-        final optionValue = optionValues[attr.id];
-        final optionGroup = optionValue != null
-            ? optionGroups[optionValue.optionId]
-            : null;
+      // Resolve each product_option_value ID to its full attribute info
+      final resolvedAttributes = <CombinationAttributeDetail>[];
 
-        return CombinationAttributeDetail(
-          groupId: optionGroup?.id ?? '',
-          groupName: optionGroup?.publicName ?? optionGroup?.name ?? '',
-          valueId: attr.id,
-          valueName: optionValue?.name ?? '',
-          color: optionValue?.color,
-        );
-      }).toList();
+      for (final valueId in combo.productOptionValueIds) {
+        final optionValue = optionValues[valueId];
+        if (optionValue != null) {
+          final attributeGroup = attributeGroups[optionValue.optionId];
 
-      // Get stock quantity
+          resolvedAttributes.add(CombinationAttributeDetail(
+            groupId: optionValue.optionId,
+            groupName: attributeGroup?.publicName ?? attributeGroup?.name ?? '',
+            valueId: valueId,
+            valueName: optionValue.name,
+            color: optionValue.color,
+          ));
+        }
+      }
+
+      // Get stock quantity (from stock_availables or combination's quantity)
       final quantity = stockMap[combo.id] ?? combo.quantity;
+
+      // Calculate final price: Base Price + Price Impact
+      final finalPrice = basePrice + combo.priceImpact;
 
       return ProductCombination(
         id: combo.id,
         productId: combo.idProduct,
         reference: combo.reference,
         priceImpact: combo.priceImpact,
-        finalPrice: basePrice + combo.priceImpact,
+        finalPrice: finalPrice,
         quantity: quantity,
         isDefault: combo.defaultOn,
-        attributes: attributes,
+        attributes: resolvedAttributes,
       );
     }).toList();
   }
 
-  Future<List<String>> _fetchAllProductIds({
+  PriceRange _calculatePriceRange(
+    ProductDetail product,
+    List<ProductCombination> combinations,
+  ) {
+    if (product.isSimpleProduct || combinations.isEmpty) {
+      return PriceRange(min: product.basePrice, max: product.basePrice);
+    }
+
+    final prices = combinations.map((c) => c.finalPrice).toList();
+    return PriceRange(
+      min: prices.reduce((a, b) => a < b ? a : b),
+      max: prices.reduce((a, b) => a > b ? a : b),
+    );
+  }
+
+  Future<List<String>> _fetchProductIds({
     String? categoryId,
     String? manufacturerId,
   }) async {
@@ -574,7 +564,7 @@ class ComprehensiveProductService {
       return true;
     }
 
-    // For combination products, check if any combination falls within range
+    // For combination products, check if ANY combination falls within range
     for (final combo in product.combinations) {
       final price = combo.finalPrice;
       final matchesMin = minPrice == null || price >= minPrice;
@@ -593,7 +583,7 @@ class ComprehensiveProductService {
       return false;
     }
 
-    // Check if any combination matches all attribute filters
+    // Check if any combination matches ALL attribute filters
     for (final combo in product.combinations) {
       bool allMatch = true;
 
@@ -601,19 +591,11 @@ class ComprehensiveProductService {
         final groupName = entry.key;
         final valueName = entry.value;
 
-        final matchingAttr = combo.attributes.firstWhere(
-          (attr) =>
-              attr.groupName.toLowerCase() == groupName.toLowerCase() &&
-              attr.valueName.toLowerCase() == valueName.toLowerCase(),
-          orElse: () => CombinationAttributeDetail(
-            groupId: '',
-            groupName: '',
-            valueId: '',
-            valueName: '',
-          ),
-        );
+        final hasMatch = combo.attributes.any((attr) =>
+            attr.groupName.toLowerCase() == groupName.toLowerCase() &&
+            attr.valueName.toLowerCase() == valueName.toLowerCase());
 
-        if (matchingAttr.valueId.isEmpty) {
+        if (!hasMatch) {
           allMatch = false;
           break;
         }
@@ -626,29 +608,38 @@ class ComprehensiveProductService {
   }
 
   List<ProductDetail> _sortProducts(List<ProductDetail> products, String sortBy) {
+    final sorted = List<ProductDetail>.from(products);
+
     switch (sortBy) {
       case 'price_ASC':
-        products.sort((a, b) => a.displayPrice.compareTo(b.displayPrice));
+        sorted.sort((a, b) => a.displayPrice.compareTo(b.displayPrice));
         break;
       case 'price_DESC':
-        products.sort((a, b) => b.displayPrice.compareTo(a.displayPrice));
+        sorted.sort((a, b) => b.displayPrice.compareTo(a.displayPrice));
         break;
       case 'name_ASC':
-        products.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        sorted.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
         break;
       case 'name_DESC':
-        products.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+        sorted.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
         break;
       case 'id_ASC':
-        products.sort((a, b) => int.parse(a.id).compareTo(int.parse(b.id)));
+        sorted.sort((a, b) {
+          final aId = int.tryParse(a.id) ?? 0;
+          final bId = int.tryParse(b.id) ?? 0;
+          return aId.compareTo(bId);
+        });
         break;
       case 'id_DESC':
-        products.sort((a, b) => int.parse(b.id).compareTo(int.parse(a.id)));
-        break;
-      default:
+        sorted.sort((a, b) {
+          final aId = int.tryParse(a.id) ?? 0;
+          final bId = int.tryParse(b.id) ?? 0;
+          return bId.compareTo(aId);
+        });
         break;
     }
-    return products;
+
+    return sorted;
   }
 }
 
@@ -688,7 +679,7 @@ extension ProductDetailFiltering on ProductDetail {
     return result.map((key, value) => MapEntry(key, value.toList()..sort()));
   }
 
-  /// Get combinations filtered by stock
+  /// Get combinations that are in stock
   List<ProductCombination> get inStockCombinations {
     return combinations.where((c) => c.inStock).toList();
   }
