@@ -104,7 +104,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                _buildStatusChip(order.currentState ?? 'Processing'),
+                _buildStatusChip(order.orderState ?? 'Processing'),
               ],
             ),
             const SizedBox(height: 8),
@@ -156,7 +156,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   Widget _buildStatusTimeline(Order order) {
     final steps = ['Confirmed', 'Processing', 'Shipped', 'Delivered'];
-    final currentStep = _getCurrentStep(order.currentState ?? 'Processing');
+    final currentStep = _getCurrentStep(order.orderState ?? 'Processing');
 
     return Card(
       child: Padding(
@@ -288,7 +288,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                   ),
                   Text(
-                    CurrencyFormatter.format(item.totalPrice),
+                    CurrencyFormatter.formatTND(item.totalPrice),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -346,14 +346,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ),
             const Divider(),
-            _buildSummaryRow('Subtotal', CurrencyFormatter.format(order.totalProducts)),
-            _buildSummaryRow('Shipping', CurrencyFormatter.format(order.totalShipping)),
+            _buildSummaryRow('Subtotal', CurrencyFormatter.formatTND(order.totalProducts)),
+            _buildSummaryRow('Shipping', CurrencyFormatter.formatTND(order.totalShipping)),
             if (order.totalDiscounts > 0)
-              _buildSummaryRow('Discount', '-${CurrencyFormatter.format(order.totalDiscounts)}', isDiscount: true),
+              _buildSummaryRow('Discount', '-${CurrencyFormatter.formatTND(order.totalDiscounts)}', isDiscount: true),
             const Divider(),
             _buildSummaryRow(
               'Total',
-              CurrencyFormatter.format(order.totalPaid),
+              CurrencyFormatter.formatTND(order.totalPaid),
               isBold: true,
             ),
           ],

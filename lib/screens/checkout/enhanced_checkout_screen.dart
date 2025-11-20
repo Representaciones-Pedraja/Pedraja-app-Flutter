@@ -304,7 +304,7 @@ class _EnhancedCheckoutScreenState extends State<EnhancedCheckoutScreen> {
             ),
             subtitle: Text(carrier.deliveryTime),
             secondary: Text(
-              CurrencyFormatter.format(carrier.price),
+              CurrencyFormatter.formatTND(carrier.price),
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: AppTheme.accentBlue,
@@ -375,18 +375,18 @@ class _EnhancedCheckoutScreenState extends State<EnhancedCheckoutScreen> {
         const Divider(),
 
         // Totals
-        _buildTotalRow('Subtotal (${cart.itemCount} items)', CurrencyFormatter.format(subtotal)),
+        _buildTotalRow('Subtotal (${cart.itemCount} items)', CurrencyFormatter.formatTND(subtotal)),
         if (discount > 0)
-          _buildTotalRow('Discount', '-${CurrencyFormatter.format(discount)}', isDiscount: true),
-        _buildTotalRow('Shipping', CurrencyFormatter.format(shippingCost)),
+          _buildTotalRow('Discount', '-${CurrencyFormatter.formatTND(discount)}', isDiscount: true),
+        _buildTotalRow('Shipping', CurrencyFormatter.formatTND(shippingCost)),
         if (cart.hasVouchers)
           ...cart.appliedVouchers.map((v) => _buildTotalRow(
             'Voucher: ${v.cartRule.code}',
-            '-${CurrencyFormatter.format(v.discountAmount)}',
+            '-${CurrencyFormatter.formatTND(v.discountAmount)}',
             isDiscount: true,
           )),
         const Divider(),
-        _buildTotalRow('Total', CurrencyFormatter.format(total), isBold: true),
+        _buildTotalRow('Total', CurrencyFormatter.formatTND(total), isBold: true),
       ],
     );
   }
