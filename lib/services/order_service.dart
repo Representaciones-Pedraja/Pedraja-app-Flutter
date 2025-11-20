@@ -20,7 +20,45 @@ class OrderService {
     double shippingCost = 0.0,
   }) async {
     try {
-      // Calculate totals
+      // Step 1: Create a cart in PrestaShop
+      final cartData = {
+        'cart': {
+          'id_customer': customer.id,
+          'id_address_delivery': shippingAddress.id,
+          'id_address_invoice': billingAddress?.id ?? shippingAddress.id,
+          'id_carrier': carrierId,
+          'id_lang': '1',
+          'id_currency': '1',
+          'id_shop': '1',
+          'id_shop_group': '1',
+          'associations': {
+            'cart_rows': items.map((item) {
+              return {
+                'id_product': item.product.id,
+                'id_product_attribute': item.variantId ?? '0',
+                'quantity': item.quantity.toString(),
+                'id_address_delivery': shippingAddress.id,
+              };
+            }).toList(),
+          },
+        },
+      };
+
+      final cartResponse = await _apiService.post(
+        ApiConfig.cartsEndpoint,
+        cartData,
+      );
+
+      String? cartId;
+      if (cartResponse['cart'] != null) {
+        cartId = cartResponse['cart']['id']?.toString();
+      }
+
+      if (cartId == null) {
+        throw Exception('Failed to create cart');
+      }
+
+      // Step 2: Create the order with the cart ID
       final totalProducts = items.fold<double>(
         0,
         (sum, item) => sum + item.totalPrice,
@@ -32,6 +70,7 @@ class OrderService {
 
       final orderData = {
         'order': {
+          'id_cart': cartId,
           'id_customer': customer.id,
           'id_address_delivery': shippingAddress.id,
           'id_address_invoice': billingAddress?.id ?? shippingAddress.id,
@@ -40,7 +79,7 @@ class OrderService {
           'id_currency': '1',
           'id_shop': '1',
           'id_shop_group': '1',
-          'payment': paymentMethod,
+          'payment': paymentMethod == 'ps_checkpayment' ? 'Chèque' : 'Paiement comptant à la livraison',
           'module': paymentMethod == 'ps_checkpayment' ? 'ps_checkpayment' : 'ps_cashondelivery',
           'current_state': '1',
           'total_products': totalProducts.toStringAsFixed(6),
