@@ -1,6 +1,5 @@
 import '../models/product.dart';
 import '../models/combination.dart';
-import '../models/manufacturer.dart';
 import '../models/specific_price.dart';
 import '../models/feature.dart';
 import '../config/api_config.dart';
@@ -107,15 +106,16 @@ class ProductService {
     try {
       // Fetch stock data
       final productIds = products.map((p) => p.id).toList();
-      final stockMap = await _stockService.getStockForProducts(productIds);
+      final stockDataMap = await _stockService.getStockForProducts(productIds);
+
+      // Convert to quantity map
+      final stockMap = <String, int>{};
+      for (final entry in stockDataMap.entries) {
+        final stocks = entry.value;
+        stockMap[entry.key] = stocks.fold<int>(0, (sum, stock) => sum + stock.quantity);
+      }
 
       // Fetch manufacturer names
-      final uniqueManufacturerIds = products
-          .where((p) => p.manufacturerId != null)
-          .map((p) => p.manufacturerId!)
-          .toSet()
-          .toList();
-
       Map<String, String> manufacturerNames = {};
       try {
         final manufacturers = await _manufacturerService.getManufacturers();

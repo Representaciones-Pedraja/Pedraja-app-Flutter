@@ -168,7 +168,7 @@ class StockService {
   /// Get total stock quantity for a product
   Future<int> getTotalStock(String productId) async {
     final stocks = await getStockByProduct(productId);
-    return stocks.fold(0, (sum, stock) => sum + stock.quantity);
+    return stocks.fold<int>(0, (sum, stock) => sum + stock.quantity);
   }
 
   List<StockAvailable> _parseStockList(Map<String, dynamic> response) {
