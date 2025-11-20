@@ -32,7 +32,7 @@ class ApiConfig {
   static const String orderPaymentsEndpoint = 'api/order_payments';
 
   // Request parameters
-  static const String outputFormat = 'JSON'; // or 'XML'
+  static const String outputFormat = 'XML'; // Changed to XML format
   static const String language = 'en';
   static const int defaultLimit = 20;
 }
