@@ -1,6 +1,5 @@
 import 'address.dart';
 import 'customer.dart';
-import 'dart:io';
 
 class OrderItem {
   final String productId;
@@ -224,7 +223,7 @@ class Order {
       dateUpd: order['date_upd'] != null
           ? DateTime.tryParse(order['date_upd'].toString())
           : null,
-      orderRows: order['associations']?['order_rows'],
+      orderRows: order['associations'] is Map ? order['associations']['order_rows'] : null,
     );
   }
 

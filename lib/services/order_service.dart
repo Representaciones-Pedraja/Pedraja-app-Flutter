@@ -25,9 +25,24 @@ class OrderService {
 
       String stateName = 'Unknown';
       if (response['order_state'] != null) {
-        final name = response['order_state']['name'];
-        if (name['language'] is List && (name['language'] as List).isNotEmpty) {
-          stateName = name['language'][0]['value']?.toString() ?? 'Unknown';
+        final nameData = response['order_state']['name'];
+        if (nameData is Map) {
+          // Handle language array structure
+          if (nameData['language'] is List && (nameData['language'] as List).isNotEmpty) {
+            stateName = nameData['language'][0]['value']?.toString() ?? 'Unknown';
+          } else if (nameData['language'] is Map) {
+            stateName = nameData['language']['value']?.toString() ?? 'Unknown';
+          }
+        } else if (nameData is String) {
+          stateName = nameData;
+        } else if (nameData is List && nameData.isNotEmpty) {
+          // Direct language array
+          final first = nameData.first;
+          if (first is Map) {
+            stateName = first['value']?.toString() ?? 'Unknown';
+          } else if (first is String) {
+            stateName = first;
+          }
         }
       }
 
