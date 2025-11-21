@@ -28,6 +28,8 @@ class OrderProvider with ChangeNotifier {
     required List<CartItem> items,
     required String carrierId,
     required String paymentMethod,
+    double shippingCost = 0.0,
+    double discount = 0.0,
   }) async {
     _isLoading = true;
     _error = null;
@@ -41,6 +43,8 @@ class OrderProvider with ChangeNotifier {
         items: items,
         carrierId: carrierId,
         paymentMethod: paymentMethod,
+        shippingCost: shippingCost,
+        discount: discount,
       );
       _error = null;
     } catch (e) {

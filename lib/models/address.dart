@@ -8,7 +8,9 @@ class Address {
   final String postcode;
   final String city;
   final String country;
+  final String? countryId;
   final String? state;
+  final String? stateId;
   final String? phone;
   final String? mobilePhone;
   final String? customerId;
@@ -23,7 +25,9 @@ class Address {
     required this.postcode,
     required this.city,
     required this.country,
+    this.countryId,
     this.state,
+    this.stateId,
     this.phone,
     this.mobilePhone,
     this.customerId,
@@ -54,7 +58,9 @@ class Address {
       postcode: address['postcode']?.toString() ?? '',
       city: address['city']?.toString() ?? '',
       country: address['country']?.toString() ?? '',
+      countryId: address['id_country']?.toString(),
       state: address['state']?.toString(),
+      stateId: address['id_state']?.toString(),
       phone: address['phone']?.toString(),
       mobilePhone: address['phone_mobile']?.toString(),
       customerId: address['id_customer']?.toString(),
@@ -64,18 +70,26 @@ class Address {
   Map<String, dynamic> toJson() {
     return {
       if (id != null) 'id': id,
+      'id_customer': customerId ?? '',
+      'id_manufacturer': '',
+      'id_supplier': '',
+      'id_warehouse': '',
+      'id_country': countryId ?? '1',
+      'id_state': stateId ?? '0',
       'alias': alias,
-      'firstname': firstName,
+      'company': '',
       'lastname': lastName,
+      'firstname': firstName,
+      'vat_number': '',
       'address1': address1,
-      if (address2 != null) 'address2': address2,
+      'address2': address2 ?? '',
       'postcode': postcode,
       'city': city,
-      'country': country,
-      if (state != null) 'state': state,
-      if (phone != null) 'phone': phone,
-      if (mobilePhone != null) 'phone_mobile': mobilePhone,
-      if (customerId != null) 'id_customer': customerId,
+      'other': '',
+      'phone': phone ?? '',
+      'phone_mobile': mobilePhone ?? '',
+      'dni': '',
+      'deleted': '0',
     };
   }
 }
