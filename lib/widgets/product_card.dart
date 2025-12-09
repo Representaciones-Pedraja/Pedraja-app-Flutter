@@ -106,28 +106,7 @@ class ProductCard extends StatelessWidget {
                       ),
                     ),
 
-                  // Out of Stock Overlay
-                  if (!product.inStock)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(AppTheme.radiusMedium),
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            l10n?.outOfStock ?? 'Rupture de stock',
-                            style: const TextStyle(
-                              color: AppTheme.primaryBlack,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                  // Stock check removed - will be checked only on product detail page
                 ],
               ),
             ),
@@ -189,26 +168,24 @@ class ProductCard extends StatelessWidget {
                                 builder: (context, cart, child) {
                                   final isInCart = cart.isInCart(product.id);
                                   return GestureDetector(
-                                    onTap: product.inStock
-                                        ? () {
-                                            if (!isInCart) {
-                                              cart.addItem(product);
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(l10n?.addedToCart ?? 'Ajouté au panier'),
-                                                  duration: const Duration(seconds: 1),
-                                                  behavior: SnackBarBehavior.floating,
-                                                ),
-                                              );
-                                            }
-                                          }
-                                        : null,
+                                    onTap: () {
+                                      if (!isInCart) {
+                                        cart.addItem(product);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(l10n?.addedToCart ?? 'Ajouté au panier'),
+                                            duration: const Duration(seconds: 1),
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                      }
+                                    },
                                     child: Container(
                                       padding: const EdgeInsets.all(6),
                                       decoration: BoxDecoration(
                                         color: isInCart
                                             ? AppTheme.successGreen
-                                            : (product.inStock ? AppTheme.primaryBlack : AppTheme.lightGrey),
+                                            : AppTheme.primaryBlack,
                                         borderRadius: BorderRadius.circular(
                                           AppTheme.radiusSmall,
                                         ),

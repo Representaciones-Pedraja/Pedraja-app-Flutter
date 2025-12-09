@@ -41,40 +41,98 @@ class Product {
     this.discountPercentage,
   });
 
-  bool get isOnSale => onSale || (reducedPrice != null && reducedPrice! < price);
+  bool get isOnSale =>
+      onSale || (reducedPrice != null && reducedPrice! < price);
   double get calculatedDiscountPercentage =>
-      discountPercentage ?? (isOnSale && reducedPrice != null ? ((price - reducedPrice!) / price * 100) : 0);
+      discountPercentage ??
+      (isOnSale && reducedPrice != null
+          ? ((price - reducedPrice!) / price * 100)
+          : 0);
   double get finalPrice => reducedPrice ?? price;
   bool get inStock => quantity > 0;
 
   factory Product.fromJson(Map<String, dynamic> json) {
     try {
+      print('🔵 Product.fromJson - Input keys: ${json.keys.toList()}');
       final product = json['product'] ?? json;
+      print('🔵 Product data keys: ${product.keys.toList()}');
 
       // Handle price - could be string or number
       double parsePrice(dynamic value) {
         if (value == null) return 0.0;
         if (value is num) return value.toDouble();
-        return double.tryParse(value.toString()) ?? 0.0;
+        final parsed = double.tryParse(value.toString());
+        print('💰 Parsing price: $value -> ${parsed ?? 0.0}');
+        return parsed ?? 0.0;
       }
 
-      // Handle quantity
+      // Handle quantity - always default to 1 for list display
       int parseQuantity(dynamic value) {
-        if (value == null) return 0;
+        if (value == null) return 1; // Default to 1 (in stock)
         if (value is int) return value;
-        return int.tryParse(value.toString()) ?? 0;
+        return int.tryParse(value.toString()) ?? 1;
       }
+
+      // Get product name
+      String getName() {
+        print('📝 Name field: ${product['name']}');
+        if (product['name'] != null) {
+          final name = LanguageHelper.extractValueOrEmpty(product['name']);
+          print('📝 Extracted name: $name');
+          return name.isNotEmpty ? name : 'Product';
+        }
+        return 'Product'; // Fallback
+      }
+
+      // Get product price (PrestaShop uses different field names)
+      double getPrice() {
+        print('💰 Price field: ${product['price']}');
+        print('💰 Price tax exc field: ${product['price_tax_exc']}');
+        print('💰 Wholesale price field: ${product['wholesale_price']}');
+
+        // Try different price fields in PrestaShop
+        if (product['price'] != null &&
+            product['price'].toString() != '0' &&
+            product['price'].toString() != '0.000000') {
+          return parsePrice(product['price']);
+        }
+        if (product['price_tax_exc'] != null &&
+            product['price_tax_exc'].toString() != '0' &&
+            product['price_tax_exc'].toString() != '0.000000') {
+          return parsePrice(product['price_tax_exc']);
+        }
+        if (product['wholesale_price'] != null &&
+            product['wholesale_price'].toString() != '0' &&
+            product['wholesale_price'].toString() != '0.000000') {
+          return parsePrice(product['wholesale_price']);
+        }
+        return 0.0;
+      }
+
+      print('📄 Description field: ${product['description']}');
+      print('📄 Short description field: ${product['description_short']}');
+
+      final description = LanguageHelper.extractValueOrEmpty(
+          product['description'] ?? product['description_short']);
+      final shortDescription =
+          LanguageHelper.extractValueOrEmpty(product['description_short']);
+
+      print(
+          '📄 Extracted description: ${description.isEmpty ? "EMPTY" : description.substring(0, description.length > 50 ? 50 : description.length)}');
+      print(
+          '📄 Extracted short description: ${shortDescription.isEmpty ? "EMPTY" : shortDescription.substring(0, shortDescription.length > 50 ? 50 : shortDescription.length)}');
 
       return Product(
         id: product['id']?.toString() ?? '',
-        name: LanguageHelper.extractValueOrEmpty(product['name']),
-        description: LanguageHelper.extractValueOrEmpty(product['description']),
-        shortDescription: LanguageHelper.extractValueOrEmpty(product['description_short']),
-        price: parsePrice(product['price']),
+        name: getName(),
+        description: description,
+        shortDescription: shortDescription,
+        price: getPrice(),
         reducedPrice: product['price_final'] != null
             ? parsePrice(product['price_final'])
             : null,
-        imageUrl: product['id_default_image'] != null
+        imageUrl: product['id_default_image'] != null &&
+                product['id_default_image'].toString() != '0'
             ? product['image_url']?.toString()
             : null,
         images: product['images'] != null
@@ -87,7 +145,8 @@ class Product {
         categoryId: product['id_category_default']?.toString() ?? '0',
         manufacturerId: product['id_manufacturer']?.toString(),
         manufacturerName: product['manufacturer_name']?.toString(),
-        defaultCombinationId: product['id_default_combination']?.toString(),
+        defaultCombinationId: product['cache_default_attribute']?.toString() ??
+            product['id_default_combination']?.toString(),
         variants: product['variants'] != null
             ? (product['variants'] as List)
                 .map((v) => ProductVariant.fromJson(v))
@@ -99,6 +158,8 @@ class Product {
             : null,
       );
     } catch (e) {
+      print('Error parsing product: $e');
+      print('Product data: $json');
       throw Exception('Failed to parse product: $e');
     }
   }

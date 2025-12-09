@@ -7,6 +7,7 @@ import '../../models/product_detail.dart';
 import '../../models/product_option.dart';
 import '../../services/api_service.dart';
 import '../../services/product_option_service.dart';
+import '../../services/stock_service.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/error_widget.dart';
 import '../../config/app_theme.dart';
@@ -35,6 +36,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   Map<String, ProductOptionValue> _optionValues = {};
   Map<String, ProductOption> _attributeGroups = {};
   bool _attributesLoaded = false;
+
+  // Real stock status from API
+  bool? _realStockStatus;
+  int? _realStockQuantity;
 
   @override
   void initState() {
@@ -98,6 +103,54 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     } catch (e) {
       debugPrint('Error loading attribute data: $e');
       setState(() => _attributesLoaded = true);
+    }
+  }
+
+  /// Check real stock from PrestaShop stock_availables endpoint
+  Future<void> _checkRealStock(String productId, String? combinationId) async {
+    try {
+      print('📦 Checking real stock for product $productId, combination: $combinationId');
+
+      final apiService = ApiService(
+        baseUrl: ApiConfig.baseUrl,
+        apiKey: ApiConfig.apiKey,
+      );
+      final stockService = StockService(apiService);
+
+      if (combinationId != null && combinationId != '0') {
+        // Check stock for specific combination
+        final stocks = await stockService.getStockByProduct(productId);
+        final combinationStock = stocks.firstWhere(
+          (s) => s.productAttributeId == combinationId,
+          orElse: () => stocks.first,
+        );
+
+        print('✅ Real stock quantity: ${combinationStock.quantity}');
+        setState(() {
+          _realStockQuantity = combinationStock.quantity;
+          _realStockStatus = combinationStock.quantity > 0;
+        });
+      } else {
+        // Check stock for simple product
+        final stocks = await stockService.getStockByProduct(productId);
+        final simpleStock = stocks.firstWhere(
+          (s) => s.productAttributeId == '0',
+          orElse: () => stocks.first,
+        );
+
+        print('✅ Real stock quantity: ${simpleStock.quantity}');
+        setState(() {
+          _realStockQuantity = simpleStock.quantity;
+          _realStockStatus = simpleStock.quantity > 0;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking real stock: $e');
+      // If check fails, assume out of stock
+      setState(() {
+        _realStockStatus = false;
+        _realStockQuantity = 0;
+      });
     }
   }
 
@@ -176,11 +229,25 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             _loadAttributeData(combinations);
           }
 
+          // Check stock for simple products (no combinations)
+          if (combinations.isEmpty &&
+              _realStockStatus == null &&
+              (product.inStock == false || product.quantity == 0)) {
+            _checkRealStock(widget.productId, null);
+          }
+
           // Set default combination index
           if (_selectedCombinationIndex == null && combinations.isNotEmpty) {
             _selectedCombinationIndex =
                 combinations.indexWhere((c) => c.defaultOn);
             if (_selectedCombinationIndex == -1) _selectedCombinationIndex = 0;
+
+            // Check real stock for default combination if it appears out of stock
+            final defaultCombo = combinations[_selectedCombinationIndex!];
+            if (_realStockStatus == null &&
+                (defaultCombo?.inStock == false || defaultCombo?.quantity == 0)) {
+              _checkRealStock(widget.productId, defaultCombo?.id);
+            }
           }
 
           final selectedCombination = _selectedCombinationIndex != null &&
@@ -238,19 +305,31 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               selectedIndex: _selectedCombinationIndex ?? 0,
                               optionValues: _optionValues,
                               attributeGroups: _attributeGroups,
-                              onCombinationSelected: (index) {
+                              onCombinationSelected: (index) async {
                                 setState(() {
                                   _selectedCombinationIndex = index;
+                                  // Reset real stock status when changing combination
+                                  _realStockStatus = null;
+                                  _realStockQuantity = null;
                                 });
+
+                                // Check real stock if combination appears out of stock
+                                final selectedCombo = combinations[index];
+                                if (selectedCombo?.inStock == false || selectedCombo?.quantity == 0) {
+                                  await _checkRealStock(
+                                    widget.productId,
+                                    selectedCombo?.id,
+                                  );
+                                }
                               },
                             ),
 
                           // Stock Status
                           _StockStatus(
-                            inStock:
-                                selectedCombination?.inStock ?? product.inStock,
-                            quantity: selectedCombination?.quantity ??
-                                product.quantity,
+                            inStock: _realStockStatus ??
+                                (selectedCombination?.inStock ?? product.inStock),
+                            quantity: _realStockQuantity ??
+                                (selectedCombination?.quantity ?? product.quantity),
                           ),
 
                           const SizedBox(height: 24),
@@ -294,9 +373,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 right: 0,
                 child: _AddToCartBar(
                   quantity: _quantity,
-                  maxQuantity:
-                      selectedCombination?.quantity ?? product.quantity,
-                  inStock: selectedCombination?.inStock ?? product.inStock,
+                  maxQuantity: _realStockQuantity ??
+                      (selectedCombination?.quantity ?? product.quantity),
+                  inStock: _realStockStatus ??
+                      (selectedCombination?.inStock ?? product.inStock),
                   onQuantityChanged: (newQuantity) {
                     setState(() {
                       _quantity = newQuantity;
@@ -1096,7 +1176,7 @@ class _FeaturesSection extends StatelessWidget {
                     SizedBox(
                       width: 120,
                       child: Text(
-                        feature.name,
+                        feature.featureName,
                         style: TextStyle(
                           fontSize: 13,
                           color: AppTheme.secondaryGrey,
