@@ -1,4 +1,5 @@
 import '../utils/language_helper.dart';
+import '../config/api_config.dart';
 
 class Product {
   final String id;
@@ -53,16 +54,13 @@ class Product {
 
   factory Product.fromJson(Map<String, dynamic> json) {
     try {
-      print('🔵 Product.fromJson - Input keys: ${json.keys.toList()}');
       final product = json['product'] ?? json;
-      print('🔵 Product data keys: ${product.keys.toList()}');
 
       // Handle price - could be string or number
       double parsePrice(dynamic value) {
         if (value == null) return 0.0;
         if (value is num) return value.toDouble();
         final parsed = double.tryParse(value.toString());
-        print('💰 Parsing price: $value -> ${parsed ?? 0.0}');
         return parsed ?? 0.0;
       }
 
@@ -75,10 +73,8 @@ class Product {
 
       // Get product name
       String getName() {
-        print('📝 Name field: ${product['name']}');
         if (product['name'] != null) {
           final name = LanguageHelper.extractValueOrEmpty(product['name']);
-          print('📝 Extracted name: $name');
           return name.isNotEmpty ? name : 'Product';
         }
         return 'Product'; // Fallback
@@ -86,10 +82,7 @@ class Product {
 
       // Get product price (PrestaShop uses different field names)
       double getPrice() {
-        print('💰 Price field: ${product['price']}');
-        print('💰 Price tax exc field: ${product['price_tax_exc']}');
-        print('💰 Wholesale price field: ${product['wholesale_price']}');
-
+     
         // Try different price fields in PrestaShop
         if (product['price'] != null &&
             product['price'].toString() != '0' &&
@@ -109,19 +102,13 @@ class Product {
         return 0.0;
       }
 
-      print('📄 Description field: ${product['description']}');
-      print('📄 Short description field: ${product['description_short']}');
-
+    
       final description = LanguageHelper.extractValueOrEmpty(
           product['description'] ?? product['description_short']);
       final shortDescription =
           LanguageHelper.extractValueOrEmpty(product['description_short']);
 
-      print(
-          '📄 Extracted description: ${description.isEmpty ? "EMPTY" : description.substring(0, description.length > 50 ? 50 : description.length)}');
-      print(
-          '📄 Extracted short description: ${shortDescription.isEmpty ? "EMPTY" : shortDescription.substring(0, shortDescription.length > 50 ? 50 : shortDescription.length)}');
-
+   
       return Product(
         id: product['id']?.toString() ?? '',
         name: getName(),
@@ -131,14 +118,10 @@ class Product {
         reducedPrice: product['price_final'] != null
             ? parsePrice(product['price_final'])
             : null,
-        imageUrl: product['id_default_image'] != null &&
-                product['id_default_image'].toString() != '0'
-            ? product['image_url']?.toString()
-            : null,
-        images: product['images'] != null
-            ? List<String>.from(
-                (product['images'] as List).map((img) => img.toString()))
-            : [],
+        imageUrl: _constructImageUrl(
+            product['id']?.toString(),
+            product['id_default_image']?.toString()),
+        images: _extractImageIds(product),
         quantity: parseQuantity(product['quantity']),
         reference: product['reference']?.toString(),
         active: product['active'] == '1' || product['active'] == true,
@@ -161,6 +144,98 @@ class Product {
       print('Error parsing product: $e');
       print('Product data: $json');
       throw Exception('Failed to parse product: $e');
+    }
+  }
+
+  /// Constructs the full image URL from product ID and image ID
+  static String? _constructImageUrl(String? productId, String? imageId) {
+    if (productId == null ||
+        productId.isEmpty ||
+        imageId == null ||
+        imageId.isEmpty ||
+        imageId == '0') {
+      print('🖼️ No image URL - productId: $productId, imageId: $imageId');
+      return null;
+    }
+    final imageUrl = '${ApiConfig.baseUrl}api/images/products/$productId/$imageId';
+    print('🖼️ Product image URL constructed: $imageUrl');
+    return imageUrl;
+  }
+
+  /// Extracts image IDs from product associations
+  static List<String> _extractImageIds(Map<String, dynamic> product) {
+    try {
+      final productId = product['id']?.toString() ?? 'unknown';
+
+      // Try to get images from associations
+      if (product['associations'] != null) {
+        final associations = product['associations'];
+        if (associations['images'] != null) {
+          final images = associations['images'];
+
+          // Handle both single image and array of images
+          if (images is List) {
+            final imageIds = images
+                .map((img) {
+                  if (img is Map<String, dynamic>) {
+                    return img['id']?.toString() ?? '';
+                  }
+                  return img.toString();
+                })
+                .where((id) => id.isNotEmpty && id != '0')
+                .toList();
+
+            if (imageIds.isNotEmpty) {
+              print('🖼️ Product $productId - Found ${imageIds.length} additional image IDs: $imageIds');
+              // Construct and print full URLs
+              for (var imageId in imageIds) {
+                final url = '${ApiConfig.baseUrl}api/images/products/$productId/$imageId';
+                print('   📸 Additional image URL: $url');
+              }
+            }
+            return imageIds;
+          } else if (images is Map<String, dynamic>) {
+            final id = images['id']?.toString() ?? '';
+            if (id.isNotEmpty && id != '0') {
+              print('🖼️ Product $productId - Found 1 additional image ID: $id');
+              final url = '${ApiConfig.baseUrl}api/images/products/$productId/$id';
+              print('   📸 Additional image URL: $url');
+            }
+            return id.isNotEmpty && id != '0' ? [id] : [];
+          }
+        }
+      }
+
+      // Fallback: try direct 'images' field
+      if (product['images'] != null) {
+        final images = product['images'];
+        if (images is List) {
+          final imageIds = images
+              .map((img) {
+                if (img is Map<String, dynamic>) {
+                  return img['id']?.toString() ?? img.toString();
+                }
+                return img.toString();
+              })
+              .where((id) => id.isNotEmpty && id != '0')
+              .toList();
+
+          if (imageIds.isNotEmpty) {
+            print('🖼️ Product $productId - Found ${imageIds.length} image IDs (direct): $imageIds');
+            for (var imageId in imageIds) {
+              final url = '${ApiConfig.baseUrl}api/images/products/$productId/$imageId';
+              print('   📸 Image URL: $url');
+            }
+          }
+          return imageIds;
+        }
+      }
+
+      print('🖼️ Product $productId - No additional images found');
+      return [];
+    } catch (e) {
+      print('❌ Error extracting image IDs: $e');
+      return [];
     }
   }
 

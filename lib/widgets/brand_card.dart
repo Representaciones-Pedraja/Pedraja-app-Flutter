@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/app_theme.dart';
+import '../utils/image_helper.dart';
 
 /// Brand card for "Shop by Brand" section
 class BrandCard extends StatelessWidget {
@@ -35,6 +36,7 @@ class BrandCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                 child: CachedNetworkImage(
                   imageUrl: logoUrl!,
+                  httpHeaders: ImageHelper.authHeaders,
                   width: 60,
                   height: 60,
                   fit: BoxFit.contain,
@@ -43,15 +45,19 @@ class BrandCard extends StatelessWidget {
                     height: 60,
                     color: AppTheme.backgroundWhite,
                   ),
-                  errorWidget: (context, url, error) => Container(
-                    width: 60,
-                    height: 60,
-                    color: AppTheme.backgroundWhite,
-                    child: const Icon(
-                      Icons.business,
-                      color: AppTheme.lightGrey,
-                    ),
-                  ),
+                  errorWidget: (context, url, error) {
+                    print('❌ Failed to load brand logo: $url');
+                    print('❌ Error: $error');
+                    return Container(
+                      width: 60,
+                      height: 60,
+                      color: AppTheme.backgroundWhite,
+                      child: const Icon(
+                        Icons.business,
+                        color: AppTheme.lightGrey,
+                      ),
+                    );
+                  },
                 ),
               )
             else

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/cart_item.dart';
 import '../providers/cart_provider.dart';
 import '../config/app_theme.dart';
+import '../utils/image_helper.dart';
 
 /// Modern Cart Item Widget with quantity controls
 class CartItemWidget extends StatelessWidget {
@@ -35,6 +36,7 @@ class CartItemWidget extends StatelessWidget {
               child: item.product.imageUrl != null
                   ? CachedNetworkImage(
                       imageUrl: item.product.imageUrl!,
+                      httpHeaders: ImageHelper.authHeaders,
                       width: 90,
                       height: 90,
                       fit: BoxFit.cover,
@@ -48,15 +50,19 @@ class CartItemWidget extends StatelessWidget {
                           ),
                         ),
                       ),
-                      errorWidget: (context, url, error) => Container(
-                        width: 90,
-                        height: 90,
-                        color: AppTheme.backgroundWhite,
-                        child: const Icon(
-                          Icons.image_outlined,
-                          color: AppTheme.lightGrey,
-                        ),
-                      ),
+                      errorWidget: (context, url, error) {
+                        print('❌ Failed to load cart item image: $url');
+                        print('❌ Error: $error');
+                        return Container(
+                          width: 90,
+                          height: 90,
+                          color: AppTheme.backgroundWhite,
+                          child: const Icon(
+                            Icons.image_outlined,
+                            color: AppTheme.lightGrey,
+                          ),
+                        );
+                      },
                     )
                   : Container(
                       width: 90,

@@ -12,6 +12,7 @@ import '../../widgets/loading_widget.dart';
 import '../../widgets/error_widget.dart';
 import '../../config/app_theme.dart';
 import '../../config/api_config.dart';
+import '../../utils/image_helper.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final String productId;
@@ -516,6 +517,7 @@ class _ProductImageCarousel extends StatelessWidget {
                   }
                   return CachedNetworkImage(
                     imageUrl: url,
+                    httpHeaders: ImageHelper.authHeaders,
                     fit: BoxFit.contain,
                     placeholder: (context, url) => Container(
                       color: Colors.grey[100],
@@ -525,14 +527,18 @@ class _ProductImageCarousel extends StatelessWidget {
                         ),
                       ),
                     ),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[100],
-                      child: const Icon(
-                        Icons.image_not_supported_outlined,
-                        size: 60,
-                        color: Colors.grey,
-                      ),
-                    ),
+                    errorWidget: (context, url, error) {
+                      print('❌ Failed to load product detail image: $url');
+                      print('❌ Error: $error');
+                      return Container(
+                        color: Colors.grey[100],
+                        child: const Icon(
+                          Icons.image_not_supported_outlined,
+                          size: 60,
+                          color: Colors.grey,
+                        ),
+                      );
+                    },
                   );
                 },
               ),
@@ -1257,16 +1263,20 @@ class _RelatedProductsSection extends StatelessWidget {
                           child: product.imageUrl != null
                               ? CachedNetworkImage(
                                   imageUrl: product.imageUrl!,
+                                  httpHeaders: ImageHelper.authHeaders,
                                   fit: BoxFit.cover,
                                   width: double.infinity,
                                   placeholder: (context, url) => Container(
                                     color: Colors.grey[100],
                                   ),
-                                  errorWidget: (context, url, error) =>
-                                      Container(
-                                    color: Colors.grey[100],
-                                    child: const Icon(Icons.image),
-                                  ),
+                                  errorWidget: (context, url, error) {
+                                    print('❌ Failed to load related product image: $url');
+                                    print('❌ Error: $error');
+                                    return Container(
+                                      color: Colors.grey[100],
+                                      child: const Icon(Icons.image),
+                                    );
+                                  },
                                 )
                               : Container(
                                   color: Colors.grey[100],

@@ -5,6 +5,7 @@ import '../models/product.dart';
 import '../providers/cart_provider.dart';
 import '../config/app_theme.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/image_helper.dart';
 import '../l10n/app_localizations.dart';
 
 /// Modern Product Card with soft shadows and clean design
@@ -48,6 +49,7 @@ class ProductCard extends StatelessWidget {
                     child: product.imageUrl != null
                         ? CachedNetworkImage(
                             imageUrl: product.imageUrl!,
+                            httpHeaders: ImageHelper.authHeaders,
                             width: double.infinity,
                             height: double.infinity,
                             fit: BoxFit.cover,
@@ -60,14 +62,18 @@ class ProductCard extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            errorWidget: (context, url, error) => Container(
-                              color: AppTheme.backgroundWhite,
-                              child: const Icon(
-                                Icons.image_outlined,
-                                size: 40,
-                                color: AppTheme.lightGrey,
-                              ),
-                            ),
+                            errorWidget: (context, url, error) {
+                              print('❌ Failed to load image: $url');
+                              print('❌ Error: $error');
+                              return Container(
+                                color: AppTheme.backgroundWhite,
+                                child: const Icon(
+                                  Icons.image_outlined,
+                                  size: 40,
+                                  color: AppTheme.lightGrey,
+                                ),
+                              );
+                            },
                           )
                         : Container(
                             color: AppTheme.backgroundWhite,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/category.dart';
+import '../utils/image_helper.dart';
 
 class CategoryCard extends StatelessWidget {
   final Category category;
@@ -29,6 +30,7 @@ class CategoryCard extends StatelessWidget {
                 child: category.imageUrl != null
                     ? CachedNetworkImage(
                         imageUrl: category.imageUrl!,
+                        httpHeaders: ImageHelper.authHeaders,
                         fit: BoxFit.cover,
                         placeholder: (context, url) => Container(
                           color: Colors.grey[200],
@@ -36,14 +38,18 @@ class CategoryCard extends StatelessWidget {
                             child: CircularProgressIndicator(),
                           ),
                         ),
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey[200],
-                          child: const Icon(
-                            Icons.category,
-                            size: 50,
-                            color: Colors.grey,
-                          ),
-                        ),
+                        errorWidget: (context, url, error) {
+                          print('❌ Failed to load category image: $url');
+                          print('❌ Error: $error');
+                          return Container(
+                            color: Colors.grey[200],
+                            child: const Icon(
+                              Icons.category,
+                              size: 50,
+                              color: Colors.grey,
+                            ),
+                          );
+                        },
                       )
                     : Container(
                         color: Colors.grey[200],

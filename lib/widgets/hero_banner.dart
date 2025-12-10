@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/app_theme.dart';
+import '../utils/image_helper.dart';
 
 /// Hero banner with large image and CTA button
 class HeroBanner extends StatelessWidget {
@@ -37,6 +38,7 @@ class HeroBanner extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
               child: CachedNetworkImage(
                 imageUrl: imageUrl!,
+                httpHeaders: ImageHelper.authHeaders,
                 width: double.infinity,
                 height: double.infinity,
                 fit: BoxFit.cover,
@@ -45,9 +47,13 @@ class HeroBanner extends StatelessWidget {
                 placeholder: (context, url) => Container(
                   color: AppTheme.primaryBlack,
                 ),
-                errorWidget: (context, url, error) => Container(
-                  color: AppTheme.primaryBlack,
-                ),
+                errorWidget: (context, url, error) {
+                  print('❌ Failed to load hero banner image: $url');
+                  print('❌ Error: $error');
+                  return Container(
+                    color: AppTheme.primaryBlack,
+                  );
+                },
               ),
             ),
 

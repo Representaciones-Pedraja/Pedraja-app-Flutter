@@ -1,4 +1,5 @@
 import '../utils/language_helper.dart';
+import '../config/api_config.dart';
 
 class Category {
   final String id;
@@ -23,11 +24,13 @@ class Category {
     try {
       final category = json['category'] ?? json;
 
+      final categoryId = category['id']?.toString() ?? '';
+
       return Category(
-        id: category['id']?.toString() ?? '',
+        id: categoryId,
         name: LanguageHelper.extractValueOrEmpty(category['name']),
         description: LanguageHelper.extractValue(category['description']),
-        imageUrl: category['image_url']?.toString(),
+        imageUrl: _constructImageUrl(categoryId),
         parentId: category['id_parent']?.toString(),
         active: category['active'] == '1' || category['active'] == true,
         position: category['position'] is int
@@ -37,6 +40,17 @@ class Category {
     } catch (e) {
       throw Exception('Failed to parse category: $e');
     }
+  }
+
+  /// Constructs the full image URL for a category
+  static String? _constructImageUrl(String categoryId) {
+    if (categoryId.isEmpty || categoryId == '0') {
+      print('🖼️ [Category] No image URL - categoryId: $categoryId');
+      return null;
+    }
+    final imageUrl = '${ApiConfig.baseUrl}api/images/categories/$categoryId';
+    print('🖼️ [Category] Category image URL constructed: $imageUrl');
+    return imageUrl;
   }
 
   Map<String, dynamic> toJson() {
