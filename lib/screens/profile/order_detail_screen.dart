@@ -77,6 +77,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 _buildOrderSummary(order),
                 const SizedBox(height: 24),
 
+                // Shipping Carrier
+                _buildCarrierInfo(order),
+                const SizedBox(height: 24),
+
                 // Payment Info
                 _buildPaymentInfo(order),
               ],
@@ -382,6 +386,37 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCarrierInfo(Order order) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.local_shipping, size: 20, color: AppTheme.accentBlue),
+                const SizedBox(width: 8),
+                const Text(
+                  'Shipping Carrier',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              order.carrierName.isNotEmpty ? order.carrierName : 'N/A',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          ],
+        ),
       ),
     );
   }

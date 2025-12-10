@@ -1,15 +1,69 @@
-# PrestaShop Mobile App - Developer Reference Guide
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-This is a **Flutter-based mobile e-commerce application** that integrates with **PrestaShop API** to provide a complete shopping experience. The app is designed with a modern, minimalist UI using white backgrounds, soft shadows, and a clean design system.
+Flutter-based mobile e-commerce application integrating with PrestaShop REST API (XML format). Uses Provider for state management, supports English/French localization, targets Android primarily with iOS compatibility.
 
-- **Framework**: Flutter 3.0+
-- **Language**: Dart
-- **State Management**: Provider (ChangeNotifier pattern)
-- **API Integration**: PrestaShop REST API (XML format)
-- **Localization**: English and French
-- **Target Platforms**: Android (primary), iOS compatible
+**Tech Stack**: Flutter 3.0+, Dart 3.9+, Provider 6.1.1, HTTP + XML parsing
+
+---
+
+## Essential Commands
+
+### Development
+```bash
+# Install dependencies
+flutter pub get
+
+# Run app in debug mode
+flutter run
+
+# Run on specific device
+flutter run -d <device-id>
+
+# List available devices
+flutter devices
+
+# Enable debug mode (edit .env)
+DEBUG_MODE=true
+```
+
+### Code Quality
+```bash
+# Run linter
+flutter analyze
+
+# Format code
+flutter format lib/
+
+# Check for outdated dependencies
+flutter pub outdated
+```
+
+### Build & Release
+```bash
+# Clean build artifacts
+flutter clean
+
+# Build APK (release)
+flutter build apk --release
+
+# Build App Bundle (for Play Store)
+flutter build appbundle --release
+
+# Build for specific flavor
+flutter build apk --release --flavor production
+```
+
+### Environment Setup
+Required `.env` file in project root:
+```
+PRESTASHOP_BASE_URL=https://your-shop.prestashop.com/
+PRESTASHOP_API_KEY=your-api-key-here
+DEBUG_MODE=false
+```
 
 ---
 
@@ -613,58 +667,14 @@ class ApiException implements Exception {
 }
 ```
 
----
+## Code Quality Standards
 
-## Building & Deployment
+**Linting**: Uses `flutter_lints` package with additional rules:
+- `prefer_const_constructors`, `prefer_const_literals_to_create_immutables`
+- `prefer_single_quotes`
+- `avoid_print` disabled (debug prints allowed)
 
-### Android Build
-```
-flutter clean
-flutter pub get
-flutter build apk --release
-flutter build appbundle --release
-```
-
-**Config** (`android/app/build.gradle.kts`):
-```kotlin
-android {
-  namespace = "com.example.prestashop_mobile_app"
-  compileSdk = flutter.compileSdkVersion
-  minSdk = flutter.minSdkVersion
-  targetSdk = flutter.targetSdkVersion
-}
-```
-
-### Development Build
-```
-flutter run
-flutter run -d <device-id>
-```
-
-### Testing
-- No tests currently (test setup ready via `flutter_test`)
-- Manual QA on devices recommended for API integration
-
----
-
-## Code Quality
-
-### Linting Rules (analysis_options.yaml)
-```yaml
-include: package:flutter_lints/flutter.yaml
-
-linter:
-  rules:
-    prefer_const_constructors: true
-    prefer_const_literals_to_create_immutables: true
-    avoid_print: false
-    prefer_single_quotes: true
-```
-
-### Running Analysis
-```
-flutter analyze
-```
+**Testing**: No test suite currently implemented. Test infrastructure ready via `flutter_test` package.
 
 ---
 
@@ -758,32 +768,105 @@ Future<void> fetchProducts() async {
 
 ---
 
-## File Size Reference
-- **Total Dart Files**: 92
-- **Models**: 19 files
-- **Services**: 20 files
-- **Providers**: 9 files
-- **Screens**: 22 files (across 11 folders)
-- **Widgets**: 14 files
-- **Utils**: 4 files
+## Critical Implementation Details
+
+### PrestaShop XML Parsing Quirks
+The API returns XML with complex nested structures that require special handling:
+
+1. **Language Arrays**: Multilingual fields like product names come as:
+   ```json
+   {"language": [{"id": "1", "value": "English"}, {"id": "2", "value": "French"}]}
+   ```
+   Use `LanguageHelper.extractValue()` or `extractValueOrEmpty()` to handle these.
+
+2. **List Detection**: XML parser detects lists when multiple children have the same tag name.
+
+3. **Type Coercion**: Always use `.toString()` on numeric IDs from XML as they may parse as int or string.
+
+4. **Root Element Wrapping**: All responses wrapped in `<prestashop>` root element, which the parser strips.
+
+### State Initialization Pattern
+Providers that need to load data on app start use this pattern in `main.dart`:
+```dart
+ChangeNotifierProvider(
+  create: (_) => CartProvider(...)..loadCart(),  // Cascade to load immediately
+),
+ChangeNotifierProvider(
+  create: (_) => AuthProvider(...)..checkAuthentication(),
+),
+```
+
+### Bottom Navigation Setup
+Main navigation uses `MainScreen` in `main.dart` (lines 103-175) with 5 tabs:
+1. HomeScreen
+2. CategoryScreen
+3. CartScreen
+4. WishlistScreen
+5. ProfileScreen
+
+Index managed by `_currentIndex` state variable.
 
 ---
 
-## Git & Collaboration
-- Current branch: Development branch (feature-specific)
-- Recent work: Checkout address bugs, cart/order XML structure fixes
-- Configuration: Uses `.gitignore` for Flutter/Android builds, env files
-- Clean working tree maintained
+## Common Debugging Scenarios
+
+### API Issues
+1. Enable debug mode in `.env`: `DEBUG_MODE=true`
+2. Check console for request/response logs from `ApiService`
+3. Verify API key has correct permissions in PrestaShop admin
+4. Check XML response format - PrestaShop sometimes returns HTML errors as XML
+
+### State Not Updating
+1. Ensure `notifyListeners()` called after state changes
+2. Check widget uses `Consumer` or `context.watch()` not just `Provider.of(listen: false)`
+3. Verify provider is in MultiProvider tree in `main.dart`
+
+### XML Parsing Errors
+1. Check if field is multilingual - use `LanguageHelper`
+2. Verify field exists in API response (not all fields returned by default)
+3. Add `'display': 'full'` to query params for complete data
+4. Check for null values and provide defaults in model `fromJson()`
 
 ---
 
-## Next Steps for Development
-1. Implement payment gateway integration
-2. Add comprehensive testing (unit, widget, integration)
-3. Implement order status real-time updates
-4. Add product reviews and ratings
-5. Implement user wishlists sync with backend
-6. Add analytics and crash reporting
-7. Optimize image loading and caching
-8. Implement push notifications for order updates
+## Adding New Features
+
+When adding features that interact with PrestaShop API:
+
+1. **Create Model** (`lib/models/`)
+   - Follow existing pattern with `fromJson`, `toJson`, `copyWith`
+   - Use `LanguageHelper` for multilingual fields
+   - Add null safety with defaults
+
+2. **Create Service** (`lib/services/`)
+   - Inject `ApiService` via constructor
+   - Use appropriate endpoint from `ApiConfig`
+   - Handle errors with try/catch, throw `ApiException`
+
+3. **Create Provider** (`lib/providers/`)
+   - Extend `ChangeNotifier`
+   - Include `_isLoading`, `_error` state
+   - Call `notifyListeners()` after state changes
+
+4. **Register Provider** (`lib/main.dart`)
+   - Add to `MultiProvider` list (lines 60-89)
+   - Initialize service dependency
+   - Use cascade `..` for immediate data loading if needed
+
+5. **Add Localization**
+   - Add key to `assets/l10n/app_en.arb` and `app_fr.arb`
+   - Add getter to `lib/l10n/app_localizations.dart`
+   - Use in UI: `AppLocalizations.of(context)?.keyName ?? 'Default'`
+
+---
+
+## Architecture Decisions
+
+**Why XML not JSON?** PrestaShop's default API format. Configured in `ApiConfig.outputFormat`.
+
+**Why Provider not Riverpod/Bloc?** Simple state management sufficient for app complexity. All providers follow ChangeNotifier pattern.
+
+**Why SharedPreferences for Cart?** Cart needs to persist between app sessions but doesn't require encryption. Auth tokens use FlutterSecureStorage for security.
+
+**Why No Tests?** Test infrastructure present but not implemented yet. Manual QA currently used for API integration testing.
 

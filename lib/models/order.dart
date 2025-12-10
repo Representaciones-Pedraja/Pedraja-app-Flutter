@@ -1,6 +1,5 @@
 import 'address.dart';
 import 'customer.dart';
-import 'dart:io';
 
 class OrderItem {
   final String productId;
@@ -130,10 +129,25 @@ class Order {
         if (associations is Map) {
           orderRows = associations['order_rows'];
         } else if (associations is List) {
-          for (var item in associations) {
-            if (item is Map && item.containsKey('order_row')) {
-              orderRows = item;
-              break;
+          // When XML parser returns associations as a direct list of order_row items
+          // (this happens when order_rows contains multiple order_row elements)
+          // Check if list items look like order row data
+          if (associations.isNotEmpty &&
+              associations.first is Map &&
+              (associations.first as Map).containsKey('product_id')) {
+            // associations is directly the list of order items
+            items = associations
+                .where((row) => row is Map)
+                .map((row) => OrderItem.fromJson(row as Map<String, dynamic>))
+                .toList();
+            orderRows = null; // Already processed
+          } else {
+            // Try to find order_row key in list items
+            for (var item in associations) {
+              if (item is Map && item.containsKey('order_row')) {
+                orderRows = item;
+                break;
+              }
             }
           }
         }
@@ -209,7 +223,7 @@ class Order {
       dateUpd: order['date_upd'] != null
           ? DateTime.tryParse(order['date_upd'].toString())
           : null,
-      orderRows: order['associations']?['order_rows'],
+      orderRows: order['associations'] is Map ? order['associations']['order_rows'] : null,
     );
   }
 

@@ -1,4 +1,5 @@
 import '../utils/language_helper.dart';
+import '../config/api_config.dart';
 import 'combination.dart';
 
 /// Enhanced product model with full combination and pricing data
@@ -134,12 +135,10 @@ class ProductDetail {
       description: LanguageHelper.extractValueOrEmpty(product['description']),
       shortDescription: LanguageHelper.extractValueOrEmpty(product['description_short']),
       basePrice: parsePrice(product['price']),
-      imageUrl: product['id_default_image'] != null
-          ? product['image_url']?.toString()
-          : null,
-      images: product['images'] != null
-          ? List<String>.from((product['images'] as List).map((img) => img.toString()))
-          : [],
+      imageUrl: _constructImageUrl(
+          product['id']?.toString(),
+          product['id_default_image']?.toString()),
+      images: _extractImageIds(product),
       reference: product['reference']?.toString(),
       active: product['active'] == '1' || product['active'] == true,
       categoryId: product['id_category_default']?.toString() ?? '0',
@@ -154,6 +153,98 @@ class ProductDetail {
           : null,
       taxRulesGroupId: product['id_tax_rules_group']?.toString(),
     );
+  }
+
+  /// Constructs the full image URL from product ID and image ID
+  static String? _constructImageUrl(String? productId, String? imageId) {
+    if (productId == null ||
+        productId.isEmpty ||
+        imageId == null ||
+        imageId.isEmpty ||
+        imageId == '0') {
+      print('🖼️ [ProductDetail] No image URL - productId: $productId, imageId: $imageId');
+      return null;
+    }
+    final imageUrl = '${ApiConfig.baseUrl}api/images/products/$productId/$imageId';
+    print('🖼️ [ProductDetail] Product image URL constructed: $imageUrl');
+    return imageUrl;
+  }
+
+  /// Extracts image IDs from product associations
+  static List<String> _extractImageIds(Map<String, dynamic> product) {
+    try {
+      final productId = product['id']?.toString() ?? 'unknown';
+
+      // Try to get images from associations
+      if (product['associations'] != null) {
+        final associations = product['associations'];
+        if (associations['images'] != null) {
+          final images = associations['images'];
+
+          // Handle both single image and array of images
+          if (images is List) {
+            final imageIds = images
+                .map((img) {
+                  if (img is Map<String, dynamic>) {
+                    return img['id']?.toString() ?? '';
+                  }
+                  return img.toString();
+                })
+                .where((id) => id.isNotEmpty && id != '0')
+                .toList();
+
+            if (imageIds.isNotEmpty) {
+              print('🖼️ [ProductDetail] Product $productId - Found ${imageIds.length} additional image IDs: $imageIds');
+              // Construct and print full URLs
+              for (var imageId in imageIds) {
+                final url = '${ApiConfig.baseUrl}api/images/products/$productId/$imageId';
+                print('   📸 Additional image URL: $url');
+              }
+            }
+            return imageIds;
+          } else if (images is Map<String, dynamic>) {
+            final id = images['id']?.toString() ?? '';
+            if (id.isNotEmpty && id != '0') {
+              print('🖼️ [ProductDetail] Product $productId - Found 1 additional image ID: $id');
+              final url = '${ApiConfig.baseUrl}api/images/products/$productId/$id';
+              print('   📸 Additional image URL: $url');
+            }
+            return id.isNotEmpty && id != '0' ? [id] : [];
+          }
+        }
+      }
+
+      // Fallback: try direct 'images' field
+      if (product['images'] != null) {
+        final images = product['images'];
+        if (images is List) {
+          final imageIds = images
+              .map((img) {
+                if (img is Map<String, dynamic>) {
+                  return img['id']?.toString() ?? img.toString();
+                }
+                return img.toString();
+              })
+              .where((id) => id.isNotEmpty && id != '0')
+              .toList();
+
+          if (imageIds.isNotEmpty) {
+            print('🖼️ [ProductDetail] Product $productId - Found ${imageIds.length} image IDs (direct): $imageIds');
+            for (var imageId in imageIds) {
+              final url = '${ApiConfig.baseUrl}api/images/products/$productId/$imageId';
+              print('   📸 Image URL: $url');
+            }
+          }
+          return imageIds;
+        }
+      }
+
+      print('🖼️ [ProductDetail] Product $productId - No additional images found');
+      return [];
+    } catch (e) {
+      print('❌ [ProductDetail] Error extracting image IDs: $e');
+      return [];
+    }
   }
 
   /// Create a copy with combinations populated

@@ -25,9 +25,26 @@ class OrderService {
 
       String stateName = 'Unknown';
       if (response['order_state'] != null) {
-        final name = response['order_state']['name'];
-        if (name['language'] is List && (name['language'] as List).isNotEmpty) {
-          stateName = name['language'][0]['value']?.toString() ?? 'Unknown';
+        final nameData = response['order_state']['name'];
+        if (nameData is Map) {
+          // Handle language array structure
+          if (nameData['language'] is List &&
+              (nameData['language'] as List).isNotEmpty) {
+            stateName =
+                nameData['language'][0]['value']?.toString() ?? 'Unknown';
+          } else if (nameData['language'] is Map) {
+            stateName = nameData['language']['value']?.toString() ?? 'Unknown';
+          }
+        } else if (nameData is String) {
+          stateName = nameData;
+        } else if (nameData is List && nameData.isNotEmpty) {
+          // Direct language array
+          final first = nameData.first;
+          if (first is Map) {
+            stateName = first['value']?.toString() ?? 'Unknown';
+          } else if (first is String) {
+            stateName = first;
+          }
         }
       }
 
@@ -55,6 +72,7 @@ class OrderService {
           'id_address_delivery': shippingAddress.id,
           'id_address_invoice': billingAddress?.id ?? shippingAddress.id,
           'id_currency': '1',
+          'id_lang': '1',
           'associations': {
             'cart_rows': {
               'cart_row': items.map((item) {
@@ -110,7 +128,9 @@ class OrderService {
           'id_customer': customer.id,
           'id_carrier': carrierId,
           'current_state': '1',
-          'module': paymentMethod == 'ps_checkpayment' ? 'ps_checkpayment' : 'ps_cashondelivery',
+          'module': paymentMethod == 'ps_checkpayment'
+              ? 'ps_checkpayment'
+              : 'ps_cashondelivery',
           'invoice_number': '0',
           'invoice_date': '0000-00-00 00:00:00',
           'delivery_number': '0',
@@ -237,13 +257,19 @@ class OrderService {
 
         // Handle different response structures
         if (ordersData is List) {
-          ordersList = ordersData.cast<Map<String, dynamic>>();
+          ordersList = ordersData
+              .where((item) => item is Map)
+              .map((item) => item as Map<String, dynamic>)
+              .toList();
         } else if (ordersData is Map) {
           // Single order or nested structure
           if (ordersData.containsKey('order')) {
             var orderData = ordersData['order'];
             if (orderData is List) {
-              ordersList = orderData.cast<Map<String, dynamic>>();
+              ordersList = orderData
+                  .where((item) => item is Map)
+                  .map((item) => item as Map<String, dynamic>)
+                  .toList();
             } else if (orderData is Map) {
               ordersList = [orderData as Map<String, dynamic>];
             }

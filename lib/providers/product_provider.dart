@@ -56,13 +56,13 @@ class ProductProvider with ChangeNotifier {
   DynamicFilterData? get filterData => _filterData;
 
   /// Fetch products with pagination support (initial load)
+  /// Optimized: Fast loading without enrichment
   Future<void> fetchProducts({
     String? categoryId,
     String? searchQuery,
     String? manufacturerId,
     double? minPrice,
     double? maxPrice,
-    bool filterInStock = false,
     String? sortBy,
     bool reset = true,
   }) async {
@@ -85,7 +85,6 @@ class ProductProvider with ChangeNotifier {
         manufacturerId: manufacturerId,
         minPrice: minPrice,
         maxPrice: maxPrice,
-        filterInStock: filterInStock,
         sortBy: sortBy,
       );
 
@@ -103,10 +102,8 @@ class ProductProvider with ChangeNotifier {
         _hasMore = false;
       }
 
-      // Generate filters from products
-      if (reset && _products.isNotEmpty) {
-        _filterData = await _filterService.generateFiltersFromProducts(_products);
-      }
+      // Skip filter generation for fast loading
+      // Filters will only be generated when explicitly requested
 
       _error = null;
     } catch (e) {
@@ -127,7 +124,6 @@ class ProductProvider with ChangeNotifier {
     String? manufacturerId,
     double? minPrice,
     double? maxPrice,
-    bool filterInStock = false,
     String? sortBy,
   }) async {
     if (_isLoadingMore || !_hasMore || _isLoading) return;
@@ -144,7 +140,6 @@ class ProductProvider with ChangeNotifier {
         manufacturerId: manufacturerId,
         minPrice: minPrice,
         maxPrice: maxPrice,
-        filterInStock: filterInStock,
         sortBy: sortBy,
       );
 
@@ -171,13 +166,11 @@ class ProductProvider with ChangeNotifier {
   /// Fetch products by category with pagination
   Future<void> fetchProductsByCategory(
     String categoryId, {
-    bool filterInStock = false,
     String? sortBy,
     bool reset = true,
   }) async {
     return fetchProducts(
       categoryId: categoryId,
-      filterInStock: filterInStock,
       sortBy: sortBy,
       reset: reset,
     );
@@ -186,12 +179,10 @@ class ProductProvider with ChangeNotifier {
   /// Load more products for category
   Future<void> loadMoreCategoryProducts(
     String categoryId, {
-    bool filterInStock = false,
     String? sortBy,
   }) async {
     return loadMoreProducts(
       categoryId: categoryId,
-      filterInStock: filterInStock,
       sortBy: sortBy,
     );
   }
