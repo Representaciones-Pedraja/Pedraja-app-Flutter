@@ -292,7 +292,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                   ),
                   Text(
-                    CurrencyFormatter.formatTND(item.totalPrice),
+                    CurrencyFormatter.formatEUR(item.totalPrice),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -350,14 +350,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ),
             const Divider(),
-            _buildSummaryRow('Subtotal', CurrencyFormatter.formatTND(order.totalProducts)),
-            _buildSummaryRow('Shipping', CurrencyFormatter.formatTND(order.totalShipping)),
+            _buildSummaryRow('Subtotal', CurrencyFormatter.formatEUR(order.totalProducts)),
+            _buildSummaryRow('Shipping', CurrencyFormatter.formatEUR(order.totalShipping)),
             if (order.totalDiscount > 0)
-              _buildSummaryRow('Discount', '-${CurrencyFormatter.formatTND(order.totalDiscount)}', isDiscount: true),
+              _buildSummaryRow('Discount', '-${CurrencyFormatter.formatEUR(order.totalDiscount)}', isDiscount: true),
             const Divider(),
             _buildSummaryRow(
               'Total',
-              CurrencyFormatter.formatTND(order.totalPaid),
+              CurrencyFormatter.formatEUR(order.totalPaid),
               isBold: true,
             ),
           ],

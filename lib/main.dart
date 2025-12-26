@@ -88,12 +88,12 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'PrestaShop Mobile App',
+        title: 'Pedraja',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        locale: const Locale('fr', ''), // Default to French
+        locale: const Locale('es', ''), //
         home: const MainScreen(),
       ),
     );

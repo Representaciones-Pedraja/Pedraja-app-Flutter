@@ -132,7 +132,7 @@ class ProductService {
 
       Product product = Product.fromJson(productData);
 
-      print('✅ Parsed product: ${product.name} - ${product.price} TND');
+      print('✅ Parsed product: ${product.name} - ${product.price} EUR');
 
       // Return product without enrichment - faster loading
       // Product details from PrestaShop API already include all necessary info

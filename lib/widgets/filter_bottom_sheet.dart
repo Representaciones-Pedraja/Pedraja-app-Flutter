@@ -126,8 +126,8 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                         divisions: 20,
                         activeColor: AppTheme.primaryBlack,
                         labels: RangeLabels(
-                          '${minPrice.toStringAsFixed(0)} TND',
-                          '${maxPrice.toStringAsFixed(0)} TND',
+                          '${minPrice.toStringAsFixed(0)} EUR',
+                          '${maxPrice.toStringAsFixed(0)} EUR',
                         ),
                         onChanged: (values) {
                           setState(() {
@@ -140,14 +140,14 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '${minPrice.toStringAsFixed(0)} TND',
+                            '${minPrice.toStringAsFixed(0)} EUR',
                             style: const TextStyle(
                               fontSize: 13,
                               color: AppTheme.secondaryGrey,
                             ),
                           ),
                           Text(
-                            '${maxPrice.toStringAsFixed(0)} TND',
+                            '${maxPrice.toStringAsFixed(0)} EUR',
                             style: const TextStyle(
                               fontSize: 13,
                               color: AppTheme.secondaryGrey,

@@ -24,7 +24,7 @@ class AppLocalizations {
   ];
 
   static const List<Locale> supportedLocales = [
-    Locale('fr', ''),
+    Locale('es', ''),
     Locale('en', ''),
   ];
 
@@ -206,9 +206,8 @@ class AppLocalizations {
   String get deliveryTime => translate('deliveryTime');
   String get days => translate('days');
   String get free => translate('free');
-
-  String get tnd => translate('tnd');
-}
+  String get eur => translate('eur');
+  }
 
 class _AppLocalizationsDelegate
     extends LocalizationsDelegate<AppLocalizations> {
@@ -216,7 +215,7 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) {
-    return ['en', 'fr'].contains(locale.languageCode);
+    return ['en', 'es'].contains(locale.languageCode);
   }
 
   @override

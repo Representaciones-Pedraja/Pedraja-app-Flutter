@@ -1,4 +1,4 @@
-name: prestashop_mobile_app
+name: com.pedraja.app
 description: A Flutter mobile app that integrates with PrestaShop API for e-commerce functionality.
 publish_to: 'none'
 version: 1.0.0+1

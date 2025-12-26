@@ -1,0 +1,177 @@
+{
+  "@@locale": "es",
+
+  "appTitle": "Pedraja",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+
+  "home": "Inicio",
+  "categories": "Categorías",
+  "cart": "Carrito",
+  "wishlist": "Lista de deseos",
+  "profile": "Perfil",
+
+  "search": "Buscar",
+  "searchProducts": "Buscar productos...",
+  "searchHint": "Buscar por nombre, categoría...",
+  "noResultsFound": "No se encontraron resultados",
+  "searchHistory": "Historial de búsqueda",
+  "clearHistory": "Borrar historial",
+
+  "allCategories": "Todas las categorías",
+  "subcategories": "Subcategorías",
+  "viewAll": "Ver todo",
+  "seeAll": "Ver todo",
+
+  "products": "Productos",
+  "featuredProducts": "Productos destacados",
+  "handPickedJustForYou": "Seleccionados solo para ti",
+  "trendingToday": "Tendencias del día",
+  "newArrivals": "Novedades",
+  "freshFromWarehouse": "Recién llegado",
+  "shopByBrand": "Comprar por marca",
+  "items": "artículos",
+
+  "productDetails": "Detalles del producto",
+  "description": "Descripción",
+  "specifications": "Especificaciones",
+  "reviews": "Reseñas",
+  "addToCart": "Añadir al carrito",
+  "addedToCart": "Añadido al carrito",
+  "buyNow": "Comprar ahora",
+  "inStock": "En stock",
+  "outOfStock": "Agotado",
+  "quantity": "Cantidad",
+  "price": "Precio",
+  "total": "Total",
+  "subtotal": "Subtotal",
+
+  "cartEmpty": "Tu carrito está vacío",
+  "startShopping": "Comienza a comprar",
+  "removeFromCart": "Eliminar del carrito",
+  "clearCart": "Vaciar carrito",
+  "proceedToCheckout": "Proceder al pago",
+
+  "checkout": "Realizar pedido",
+  "customerInformation": "Información del cliente",
+  "shippingAddress": "Dirección de envío",
+  "billingAddress": "Dirección de facturación",
+  "shippingMethod": "Método de envío",
+  "paymentMethod": "Método de pago",
+  "orderSummary": "Resumen del pedido",
+  "placeOrder": "Realizar pedido",
+
+  "firstName": "Nombre",
+  "lastName": "Apellido",
+  "email": "Correo electrónico",
+  "phone": "Teléfono",
+  "address": "Dirección",
+  "city": "Ciudad",
+  "state": "Estado/Provincia",
+  "postalCode": "Código postal",
+  "country": "País",
+
+  "standardShipping": "Envío estándar",
+  "expressShipping": "Envío exprés",
+  "nextDayDelivery": "Entrega al día siguiente",
+
+  "cashOnDelivery": "Pago contra reembolso",
+  "creditCard": "Tarjeta de crédito",
+  "paypal": "PayPal",
+  "bankTransfer": "Transferencia bancaria",
+
+  "orderConfirmation": "Confirmación del pedido",
+  "orderPlaced": "Pedido realizado con éxito",
+  "orderNumber": "Número de pedido",
+  "thankYou": "Gracias por tu pedido",
+  "orderHistory": "Historial de pedidos",
+  "orderDetails": "Detalles del pedido",
+  "trackOrder": "Rastrear pedido",
+  "orderStatus": "Estado del pedido",
+
+  "login": "Iniciar sesión",
+  "register": "Registrarse",
+  "logout": "Cerrar sesión",
+  "password": "Contraseña",
+  "confirmPassword": "Confirmar contraseña",
+  "forgotPassword": "¿Olvidaste tu contraseña?",
+  "dontHaveAccount": "¿No tienes cuenta?",
+  "alreadyHaveAccount": "¿Ya tienes cuenta?",
+
+  "myAccount": "Mi cuenta",
+  "myOrders": "Mis pedidos",
+  "myAddresses": "Mis direcciones",
+  "settings": "Configuración",
+  "language": "Idioma",
+  "currency": "Moneda",
+  "notifications": "Notificaciones",
+
+  "save": "Guardar",
+  "cancel": "Cancelar",
+  "delete": "Eliminar",
+  "edit": "Editar",
+  "update": "Actualizar",
+  "confirm": "Confirmar",
+  "back": "Atrás",
+  "next": "Siguiente",
+  "done": "Hecho",
+  "ok": "OK",
+  "yes": "Sí",
+  "no": "No",
+
+  "loading": "Cargando...",
+  "loadingProducts": "Cargando productos...",
+  "loadingCategories": "Cargando categorías...",
+  "error": "Error",
+  "errorOccurred": "Ocurrió un error",
+  "tryAgain": "Intentar de nuevo",
+  "retry": "Reintentar",
+
+  "sale": "OFERTAS",
+  "summerSale": "Ofertas de verano",
+  "upToOff": "Hasta 50% de descuento en una selección de artículos",
+  "shopNow": "Comprar ahora",
+
+  "filters": "Filtros",
+  "applyFilters": "Aplicar filtros",
+  "sortBy": "Ordenar por",
+  "priceRange": "Rango de precios",
+  "minPrice": "Precio mínimo",
+  "maxPrice": "Precio máximo",
+  "apply": "Aplicar",
+  "reset": "Restablecer",
+
+  "brand": "Marca",
+  "color": "Color",
+  "size": "Talla",
+  "availability": "Disponibilidad",
+  "onSale": "En promoción",
+
+  "newest": "Más reciente",
+  "priceLowToHigh": "Precio de menor a mayor",
+  "priceHighToLow": "Precio de mayor a menor",
+  "popular": "Popular",
+
+  "discount": "Descuento",
+  "off": "de descuento",
+
+  "required": "Requerido",
+  "invalidEmail": "Correo electrónico inválido",
+  "fieldRequired": "Este campo es obligatorio",
+
+  "deliveryTime": "Tiempo de entrega",
+  "days": "días",
+  "free": "Gratis",
+
+  "eur": "EUR",
+  "currency_format": "{amount} €",
+  "@currency_format": {
+    "description": "Format for displaying currency",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  }
+}

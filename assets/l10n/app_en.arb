@@ -164,8 +164,8 @@
   "days": "days",
   "free": "Free",
 
-  "tnd": "TND",
-  "currency_format": "{amount} TND",
+  "EUR": "EUR",
+  "currency_format": "{amount} EUR",
   "@currency_format": {
     "description": "Format for displaying currency",
     "placeholders": {

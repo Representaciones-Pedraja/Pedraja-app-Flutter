@@ -438,8 +438,8 @@ class PriceRange {
 
   String format() {
     if (hasRange) {
-      return '${min.toStringAsFixed(2)} - ${max.toStringAsFixed(2)} TND';
+      return '${min.toStringAsFixed(2)} - ${max.toStringAsFixed(2)} EUR';
     }
-    return '${min.toStringAsFixed(2)} TND';
+    return '${min.toStringAsFixed(2)} EUR';
   }
 }

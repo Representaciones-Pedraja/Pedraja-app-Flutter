@@ -212,7 +212,7 @@ class CartProvider with ChangeNotifier {
       }
 
       if (subtotal < cartRule.minimumAmount) {
-        throw Exception('Minimum order amount of ${cartRule.minimumAmount.toStringAsFixed(2)} TND required');
+        throw Exception('Minimum order amount of ${cartRule.minimumAmount.toStringAsFixed(2)} EUR required');
       }
 
       final discount = cartRule.calculateDiscount(subtotal);

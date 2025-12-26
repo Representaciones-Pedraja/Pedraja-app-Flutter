@@ -3,10 +3,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import '../models/product.dart';
 import '../providers/cart_provider.dart';
+import '../providers/auth_provider.dart';
 import '../config/app_theme.dart';
-import '../utils/currency_formatter.dart';
 import '../utils/image_helper.dart';
 import '../l10n/app_localizations.dart';
+import 'conditional_price_widget.dart';
 
 /// Modern Product Card with soft shadows and clean design
 class ProductCard extends StatelessWidget {
@@ -24,6 +25,7 @@ class ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final authProvider = Provider.of<AuthProvider>(context);
 
     return GestureDetector(
       onTap: onTap,
@@ -87,8 +89,8 @@ class ProductCard extends StatelessWidget {
                           ),
                   ),
 
-                  // Sale Badge
-                  if (product.isOnSale)
+                  // Sale Badge (solo si está autenticado)
+                  if (product.isOnSale && authProvider.isAuthenticated)
                     Positioned(
                       top: AppTheme.spacing1,
                       left: AppTheme.spacing1,
@@ -111,8 +113,6 @@ class ProductCard extends StatelessWidget {
                         ),
                       ),
                     ),
-
-                  // Stock check removed - will be checked only on product detail page
                 ],
               ),
             ),
@@ -140,75 +140,67 @@ class ProductCard extends StatelessWidget {
                     ),
 
                     // Price Section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        if (product.isOnSale)
-                          Text(
-                            CurrencyFormatter.formatTND(product.price),
-                            style: const TextStyle(
+                        // Precio con control de autenticación
+                        Flexible(
+                          child: ConditionalPriceWidget(
+                            price: product.finalPrice,
+                            oldPrice: product.isOnSale ? product.price : null,
+                            priceStyle: const TextStyle(
+                              color: AppTheme.primaryBlack,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                            oldPriceStyle: const TextStyle(
                               decoration: TextDecoration.lineThrough,
                               color: AppTheme.secondaryGrey,
                               fontSize: 11,
                             ),
+                            isCompact: true,
                           ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                CurrencyFormatter.formatTND(product.finalPrice),
-                                style: const TextStyle(
-                                  color: AppTheme.primaryBlack,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-
-                            // Quick Add Button
-                            if (showAddToCart)
-                              Consumer<CartProvider>(
-                                builder: (context, cart, child) {
-                                  final isInCart = cart.isInCart(product.id);
-                                  return GestureDetector(
-                                    onTap: () {
-                                      if (!isInCart) {
-                                        cart.addItem(product);
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text(l10n?.addedToCart ?? 'Ajouté au panier'),
-                                            duration: const Duration(seconds: 1),
-                                            behavior: SnackBarBehavior.floating,
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: isInCart
-                                            ? AppTheme.successGreen
-                                            : AppTheme.primaryBlack,
-                                        borderRadius: BorderRadius.circular(
-                                          AppTheme.radiusSmall,
-                                        ),
-                                      ),
-                                      child: Icon(
-                                        isInCart
-                                            ? Icons.check
-                                            : Icons.add_shopping_cart_outlined,
-                                        size: 16,
-                                        color: AppTheme.pureWhite,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                          ],
                         ),
+
+                        // Quick Add Button (solo si está autenticado)
+                        if (showAddToCart && authProvider.isAuthenticated)
+                          Consumer<CartProvider>(
+                            builder: (context, cart, child) {
+                              final isInCart = cart.isInCart(product.id);
+                              return GestureDetector(
+                                onTap: () {
+                                  if (!isInCart) {
+                                    cart.addItem(product);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(l10n?.addedToCart ?? 'Añadido al carrito'),
+                                        duration: const Duration(seconds: 1),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: isInCart
+                                        ? AppTheme.successGreen
+                                        : AppTheme.primaryBlack,
+                                    borderRadius: BorderRadius.circular(
+                                      AppTheme.radiusSmall,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    isInCart
+                                        ? Icons.check
+                                        : Icons.add_shopping_cart_outlined,
+                                    size: 16,
+                                    color: AppTheme.pureWhite,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                       ],
                     ),
                   ],

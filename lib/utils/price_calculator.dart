@@ -66,12 +66,12 @@ class PriceCalculator {
   }
 
   /// Format price for display
-  static String formatPrice(double price, {String currency = 'TND', int decimals = 2}) {
+  static String formatPrice(double price, {String currency = 'EUR', int decimals = 2}) {
     return '${price.toStringAsFixed(decimals)} $currency';
   }
 
   /// Format price range for display
-  static String formatPriceRange(PriceRange range, {String currency = 'TND'}) {
+  static String formatPriceRange(PriceRange range, {String currency = 'EUR'}) {
     if (!range.hasRange) {
       return formatPrice(range.min, currency: currency);
     }
