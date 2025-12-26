@@ -1,445 +1,432 @@
-import '../utils/language_helper.dart';
-import '../config/api_config.dart';
-import 'combination.dart';
+// lib/models/product_detail.dart
+import 'package:prestashop_mobile_app/utils/language_helper.dart';
 
-/// Enhanced product model with full combination and pricing data
 class ProductDetail {
   final String id;
   final String name;
   final String description;
-  final String shortDescription;
-  final double basePrice;
-  final String? imageUrl;
-  final List<String> images;
-  final String? reference;
-  final bool active;
-  final String categoryId;
-  final String? manufacturerId;
-  final String? manufacturerName;
-  final String defaultCombinationId;
-  final bool isSimpleProduct;
-  final List<ProductCombination> combinations;
-  final int simpleProductStock;
-  final bool onSale;
-  final double? discountPercentage;
-  final String? taxRulesGroupId;
+  final String descriptionShort;
+  final String price;
+  final String wholesalePrice;
+  final String unity;
+  final String unitPriceRatio;
+  final String additionalShippingCost;
+  final String reference;
+  final String supplierReference;
+  final String location;
+  final String width;
+  final String height;
+  final String depth;
+  final String weight;
+  final String ean13;
+  final String isbn;
+  final String upc;
+  final String mpn;
+  final String cacheDefaultAttribute;
+  final String idCategoryDefault;
+  final String idShopDefault;
+  final String idManufacturer;
+  final String idSupplier;
+  final String idTaxRulesGroup;
+  final String condition;
+  final String showPrice;
+  final String active;
+  final String available;
+  final String visibility;
+  final String onSale;
+  final String isVirtual;
+  final String quantity;
+  final String outOfStock;
+  final String customizable;
+  final String uploadableFiles;
+  final String textFields;
+  final String advancedStockManagement;
+  final String dateAdd;
+  final String dateUpd;
+  final String packStockType;
+  final String metaDescription;
+  final String metaKeywords;
+  final String metaTitle;
+  final String linkRewrite;
+  final String availableForOrder;
+  final String availableDate;
+  final String showCondition;
+  final String lowStockThreshold;
+  final String lowStockAlert;
+
+  // NUEVOS CAMPOS PARA CANTIDADES MÍNIMAS Y MÚLTIPLOS
+  final String minimalQuantity; // Cantidad mínima
+  final String?
+  minimalPurchaseQuantity; // Cantidad mínima de compra (PrestaShop 1.7+)
+  final String? quantityStep; // Paso/múltiplo (ej: de 6 en 6)
+
+  final List<String> imageUrls;
+  final List<ProductFeature> features;
+  final List<ProductAttribute> attributes;
+  final List<SpecificPrice> specificPrices;
+
+  // NUEVO: Precios según grupos
+  final List<GroupPrice> groupPrices;
 
   ProductDetail({
     required this.id,
     required this.name,
     required this.description,
-    required this.shortDescription,
-    required this.basePrice,
-    this.imageUrl,
-    this.images = const [],
-    this.reference,
-    this.active = true,
-    required this.categoryId,
-    this.manufacturerId,
-    this.manufacturerName,
-    required this.defaultCombinationId,
-    required this.isSimpleProduct,
-    this.combinations = const [],
-    this.simpleProductStock = 0,
-    this.onSale = false,
-    this.discountPercentage,
-    this.taxRulesGroupId,
+    required this.descriptionShort,
+    required this.price,
+    required this.wholesalePrice,
+    required this.unity,
+    required this.unitPriceRatio,
+    required this.additionalShippingCost,
+    required this.reference,
+    required this.supplierReference,
+    required this.location,
+    required this.width,
+    required this.height,
+    required this.depth,
+    required this.weight,
+    required this.ean13,
+    required this.isbn,
+    required this.upc,
+    required this.mpn,
+    required this.cacheDefaultAttribute,
+    required this.idCategoryDefault,
+    required this.idShopDefault,
+    required this.idManufacturer,
+    required this.idSupplier,
+    required this.idTaxRulesGroup,
+    required this.condition,
+    required this.showPrice,
+    required this.active,
+    required this.available,
+    required this.visibility,
+    required this.onSale,
+    required this.isVirtual,
+    required this.quantity,
+    required this.outOfStock,
+    required this.customizable,
+    required this.uploadableFiles,
+    required this.textFields,
+    required this.advancedStockManagement,
+    required this.dateAdd,
+    required this.dateUpd,
+    required this.packStockType,
+    required this.metaDescription,
+    required this.metaKeywords,
+    required this.metaTitle,
+    required this.linkRewrite,
+    required this.availableForOrder,
+    required this.availableDate,
+    required this.showCondition,
+    required this.lowStockThreshold,
+    required this.lowStockAlert,
+    required this.minimalQuantity,
+    this.minimalPurchaseQuantity,
+    this.quantityStep,
+    required this.imageUrls,
+    required this.features,
+    required this.attributes,
+    required this.specificPrices,
+    required this.groupPrices,
   });
 
-  /// Get the default combination
-  ProductCombination? get defaultCombination {
-    if (isSimpleProduct || combinations.isEmpty) return null;
-    return combinations.firstWhere(
-      (c) => c.id == defaultCombinationId || c.isDefault,
-      orElse: () => combinations.first,
-    );
-  }
-
-  /// Get the display price (default combination price or base price)
-  double get displayPrice {
-    if (isSimpleProduct) return basePrice;
-    final defaultCombo = defaultCombination;
-    return defaultCombo?.finalPrice ?? basePrice;
-  }
-
-  /// Get price range across all combinations
-  PriceRange get priceRange {
-    if (isSimpleProduct || combinations.isEmpty) {
-      return PriceRange(min: basePrice, max: basePrice);
+  // GETTER: Obtiene la cantidad mínima efectiva
+  int get effectiveMinimalQuantity {
+    if (minimalPurchaseQuantity != null &&
+        minimalPurchaseQuantity!.isNotEmpty) {
+      return int.tryParse(minimalPurchaseQuantity!) ??
+          int.tryParse(minimalQuantity) ??
+          1;
     }
-    final prices = combinations.map((c) => c.finalPrice).toList();
-    return PriceRange(
-      min: prices.reduce((a, b) => a < b ? a : b),
-      max: prices.reduce((a, b) => a > b ? a : b),
-    );
+    return int.tryParse(minimalQuantity) ?? 1;
   }
 
-  /// Check if any combination is in stock
-  bool get hasStock {
-    if (isSimpleProduct) return simpleProductStock > 0;
-    return combinations.any((c) => c.inStock);
+  // GETTER: Obtiene el paso/múltiplo
+  int get effectiveQuantityStep {
+    return int.tryParse(quantityStep ?? '') ?? 1;
   }
 
-  /// Check if all combinations are in stock
-  bool get allInStock {
-    if (isSimpleProduct) return simpleProductStock > 0;
-    return combinations.every((c) => c.inStock);
+  // MÉTODO: Valida si una cantidad es válida según los múltiplos
+  bool isValidQuantity(int qty) {
+    final minQty = effectiveMinimalQuantity;
+    final step = effectiveQuantityStep;
+
+    if (qty < minQty) return false;
+    if (step <= 1) return true;
+
+    // Verifica que la cantidad sea un múltiplo válido desde la cantidad mínima
+    return (qty - minQty) % step == 0;
   }
 
-  /// Get total stock across all combinations
-  int get totalStock {
-    if (isSimpleProduct) return simpleProductStock;
-    return combinations.fold(0, (sum, c) => sum + c.quantity);
+  // MÉTODO: Ajusta la cantidad al múltiplo más cercano válido
+  int adjustToValidQuantity(int qty) {
+    final minQty = effectiveMinimalQuantity;
+    final step = effectiveQuantityStep;
+
+    if (qty < minQty) return minQty;
+    if (step <= 1) return qty;
+
+    // Ajusta al múltiplo más cercano
+    final diff = (qty - minQty) % step;
+    if (diff == 0) return qty;
+
+    // Redondea hacia arriba al siguiente múltiplo válido
+    return qty + (step - diff);
+  }
+
+  // MÉTODO: Obtiene el precio para un grupo específico
+  double getPriceForGroup(String groupId, {bool withTax = true}) {
+    // Busca precio específico para el grupo
+    for (final groupPrice in groupPrices) {
+      if (groupPrice.idGroup == groupId) {
+        return withTax ? groupPrice.priceWithTax : groupPrice.priceWithoutTax;
+      }
+    }
+
+    // Busca en precios específicos
+    for (final sp in specificPrices) {
+      if (sp.idGroup == groupId) {
+        if (sp.price != '0.000000' && sp.price.isNotEmpty) {
+          return double.tryParse(sp.price) ?? double.tryParse(price) ?? 0.0;
+        }
+      }
+    }
+
+    // Precio por defecto
+    return double.tryParse(price) ?? 0.0;
   }
 
   factory ProductDetail.fromJson(Map<String, dynamic> json) {
-    final product = json['product'] ?? json;
-
-    double parsePrice(dynamic value) {
-      if (value == null) return 0.0;
-      if (value is num) return value.toDouble();
-      return double.tryParse(value.toString()) ?? 0.0;
-    }
-
-    int parseQuantity(dynamic value) {
-      if (value == null) return 0;
-      if (value is int) return value;
-      return int.tryParse(value.toString()) ?? 0;
-    }
-
-    final defaultCombinationId = product['cache_default_attribute']?.toString() ?? '0';
-    final isSimple = defaultCombinationId == '0' || defaultCombinationId.isEmpty;
-
-    // Extract combination IDs from associations
-    List<String> combinationIds = [];
-    if (product['associations']?['combinations'] != null) {
-      var combos = product['associations']['combinations'];
-      // Handle XML nested structure
-      if (combos is Map && combos['combination'] != null) {
-        combos = combos['combination'];
+    // Parsear imágenes
+    List<String> images = [];
+    if (json['associations'] != null &&
+        json['associations']['images'] != null) {
+      final imageData = json['associations']['images'];
+      if (imageData is List) {
+        images = imageData
+            .map((img) => img['id']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toList();
       }
-      if (combos is List) {
-        combinationIds = combos.map((c) {
-          if (c is Map) return c['id']?.toString() ?? '';
-          return c.toString();
-        }).where((id) => id.isNotEmpty).toList();
-      } else if (combos is Map) {
-        final id = combos['id']?.toString() ?? '';
-        if (id.isNotEmpty) combinationIds.add(id);
+    }
+
+    // Parsear features
+    List<ProductFeature> features = [];
+    if (json['associations'] != null &&
+        json['associations']['product_features'] != null) {
+      final featureData = json['associations']['product_features'];
+      if (featureData is List) {
+        features = featureData.map((f) => ProductFeature.fromJson(f)).toList();
+      }
+    }
+
+    // Parsear attributes (para combinaciones)
+    List<ProductAttribute> attributes = [];
+    if (json['associations'] != null &&
+        json['associations']['product_option_values'] != null) {
+      final attrData = json['associations']['product_option_values'];
+      if (attrData is List) {
+        attributes = attrData.map((a) => ProductAttribute.fromJson(a)).toList();
+      }
+    }
+
+    // Parsear precios específicos
+    List<SpecificPrice> specificPrices = [];
+    if (json['associations'] != null &&
+        json['associations']['specific_prices'] != null) {
+      final spData = json['associations']['specific_prices'];
+      if (spData is List) {
+        specificPrices = spData
+            .map((sp) => SpecificPrice.fromJson(sp))
+            .toList();
+      }
+    }
+
+    // NUEVO: Parsear precios por grupo
+    List<GroupPrice> groupPrices = [];
+    if (json['associations'] != null &&
+        json['associations']['group_prices'] != null) {
+      final gpData = json['associations']['group_prices'];
+      if (gpData is List) {
+        groupPrices = gpData.map((gp) => GroupPrice.fromJson(gp)).toList();
       }
     }
 
     return ProductDetail(
-      id: product['id']?.toString() ?? '',
-      name: LanguageHelper.extractValueOrEmpty(product['name']),
-      description: LanguageHelper.extractValueOrEmpty(product['description']),
-      shortDescription: LanguageHelper.extractValueOrEmpty(product['description_short']),
-      basePrice: parsePrice(product['price']),
-      imageUrl: _constructImageUrl(
-          product['id']?.toString(),
-          product['id_default_image']?.toString()),
-      images: _extractImageIds(product),
-      reference: product['reference']?.toString(),
-      active: product['active'] == '1' || product['active'] == true,
-      categoryId: product['id_category_default']?.toString() ?? '0',
-      manufacturerId: product['id_manufacturer']?.toString(),
-      manufacturerName: product['manufacturer_name']?.toString(),
-      defaultCombinationId: defaultCombinationId,
-      isSimpleProduct: isSimple,
-      simpleProductStock: parseQuantity(product['quantity']),
-      onSale: product['on_sale'] == '1' || product['on_sale'] == true,
-      discountPercentage: product['discount_percentage'] != null
-          ? parsePrice(product['discount_percentage'])
-          : null,
-      taxRulesGroupId: product['id_tax_rules_group']?.toString(),
-    );
-  }
+      id: json['id']?.toString() ?? '',
+      name: LanguageHelper.extractValueOrEmpty(json['name']),
+      description: LanguageHelper.extractValueOrEmpty(json['description']),
+      descriptionShort: LanguageHelper.extractValueOrEmpty(
+        json['description_short'],
+      ),
+      price: json['price']?.toString() ?? '0',
+      wholesalePrice: json['wholesale_price']?.toString() ?? '0',
+      unity: json['unity']?.toString() ?? '',
+      unitPriceRatio: json['unit_price_ratio']?.toString() ?? '0',
+      additionalShippingCost:
+          json['additional_shipping_cost']?.toString() ?? '0',
+      reference: json['reference']?.toString() ?? '',
+      supplierReference: json['supplier_reference']?.toString() ?? '',
+      location: json['location']?.toString() ?? '',
+      width: json['width']?.toString() ?? '0',
+      height: json['height']?.toString() ?? '0',
+      depth: json['depth']?.toString() ?? '0',
+      weight: json['weight']?.toString() ?? '0',
+      ean13: json['ean13']?.toString() ?? '',
+      isbn: json['isbn']?.toString() ?? '',
+      upc: json['upc']?.toString() ?? '',
+      mpn: json['mpn']?.toString() ?? '',
+      cacheDefaultAttribute: json['cache_default_attribute']?.toString() ?? '0',
+      idCategoryDefault: json['id_category_default']?.toString() ?? '',
+      idShopDefault: json['id_shop_default']?.toString() ?? '',
+      idManufacturer: json['id_manufacturer']?.toString() ?? '',
+      idSupplier: json['id_supplier']?.toString() ?? '',
+      idTaxRulesGroup: json['id_tax_rules_group']?.toString() ?? '',
+      condition: json['condition']?.toString() ?? 'new',
+      showPrice: json['show_price']?.toString() ?? '1',
+      active: json['active']?.toString() ?? '1',
+      available: json['available_for_order']?.toString() ?? '1',
+      visibility: json['visibility']?.toString() ?? 'both',
+      onSale: json['on_sale']?.toString() ?? '0',
+      isVirtual: json['is_virtual']?.toString() ?? '0',
+      quantity: json['quantity']?.toString() ?? '0',
+      outOfStock: json['out_of_stock']?.toString() ?? '2',
+      customizable: json['customizable']?.toString() ?? '0',
+      uploadableFiles: json['uploadable_files']?.toString() ?? '0',
+      textFields: json['text_fields']?.toString() ?? '0',
+      advancedStockManagement:
+          json['advanced_stock_management']?.toString() ?? '0',
+      dateAdd: json['date_add']?.toString() ?? '',
+      dateUpd: json['date_upd']?.toString() ?? '',
+      packStockType: json['pack_stock_type']?.toString() ?? '3',
+      metaDescription: LanguageHelper.extractValueOrEmpty(
+        json['meta_description'],
+      ),
+      metaKeywords: LanguageHelper.extractValueOrEmpty(json['meta_keywords']),
+      metaTitle: LanguageHelper.extractValueOrEmpty(json['meta_title']),
+      linkRewrite: LanguageHelper.extractValueOrEmpty(json['link_rewrite']),
+      availableForOrder: json['available_for_order']?.toString() ?? '1',
+      availableDate: json['available_date']?.toString() ?? '',
+      showCondition: json['show_condition']?.toString() ?? '1',
+      lowStockThreshold: json['low_stock_threshold']?.toString() ?? '',
+      lowStockAlert: json['low_stock_alert']?.toString() ?? '0',
 
-  /// Constructs the full image URL from product ID and image ID
-  static String? _constructImageUrl(String? productId, String? imageId) {
-    if (productId == null ||
-        productId.isEmpty ||
-        imageId == null ||
-        imageId.isEmpty ||
-        imageId == '0') {
-      print('🖼️ [ProductDetail] No image URL - productId: $productId, imageId: $imageId');
-      return null;
-    }
-    final imageUrl = '${ApiConfig.baseUrl}api/images/products/$productId/$imageId';
-    print('🖼️ [ProductDetail] Product image URL constructed: $imageUrl');
-    return imageUrl;
-  }
+      // NUEVOS CAMPOS
+      minimalQuantity: json['minimal_quantity']?.toString() ?? '1',
+      minimalPurchaseQuantity: json['minimal_purchase_quantity']?.toString(),
+      quantityStep: json['quantity_step']?.toString(),
 
-  /// Extracts image IDs from product associations
-  static List<String> _extractImageIds(Map<String, dynamic> product) {
-    try {
-      final productId = product['id']?.toString() ?? 'unknown';
-
-      // Try to get images from associations
-      if (product['associations'] != null) {
-        final associations = product['associations'];
-        if (associations['images'] != null) {
-          final images = associations['images'];
-
-          // Handle both single image and array of images
-          if (images is List) {
-            final imageIds = images
-                .map((img) {
-                  if (img is Map<String, dynamic>) {
-                    return img['id']?.toString() ?? '';
-                  }
-                  return img.toString();
-                })
-                .where((id) => id.isNotEmpty && id != '0')
-                .toList();
-
-            if (imageIds.isNotEmpty) {
-              print('🖼️ [ProductDetail] Product $productId - Found ${imageIds.length} additional image IDs: $imageIds');
-              // Construct and print full URLs
-              for (var imageId in imageIds) {
-                final url = '${ApiConfig.baseUrl}api/images/products/$productId/$imageId';
-                print('   📸 Additional image URL: $url');
-              }
-            }
-            return imageIds;
-          } else if (images is Map<String, dynamic>) {
-            final id = images['id']?.toString() ?? '';
-            if (id.isNotEmpty && id != '0') {
-              print('🖼️ [ProductDetail] Product $productId - Found 1 additional image ID: $id');
-              final url = '${ApiConfig.baseUrl}api/images/products/$productId/$id';
-              print('   📸 Additional image URL: $url');
-            }
-            return id.isNotEmpty && id != '0' ? [id] : [];
-          }
-        }
-      }
-
-      // Fallback: try direct 'images' field
-      if (product['images'] != null) {
-        final images = product['images'];
-        if (images is List) {
-          final imageIds = images
-              .map((img) {
-                if (img is Map<String, dynamic>) {
-                  return img['id']?.toString() ?? img.toString();
-                }
-                return img.toString();
-              })
-              .where((id) => id.isNotEmpty && id != '0')
-              .toList();
-
-          if (imageIds.isNotEmpty) {
-            print('🖼️ [ProductDetail] Product $productId - Found ${imageIds.length} image IDs (direct): $imageIds');
-            for (var imageId in imageIds) {
-              final url = '${ApiConfig.baseUrl}api/images/products/$productId/$imageId';
-              print('   📸 Image URL: $url');
-            }
-          }
-          return imageIds;
-        }
-      }
-
-      print('🖼️ [ProductDetail] Product $productId - No additional images found');
-      return [];
-    } catch (e) {
-      print('❌ [ProductDetail] Error extracting image IDs: $e');
-      return [];
-    }
-  }
-
-  /// Create a copy with combinations populated
-  ProductDetail copyWithCombinations(List<ProductCombination> newCombinations) {
-    return ProductDetail(
-      id: id,
-      name: name,
-      description: description,
-      shortDescription: shortDescription,
-      basePrice: basePrice,
-      imageUrl: imageUrl,
-      images: images,
-      reference: reference,
-      active: active,
-      categoryId: categoryId,
-      manufacturerId: manufacturerId,
-      manufacturerName: manufacturerName,
-      defaultCombinationId: defaultCombinationId,
-      isSimpleProduct: isSimpleProduct,
-      combinations: newCombinations,
-      simpleProductStock: simpleProductStock,
-      onSale: onSale,
-      discountPercentage: discountPercentage,
-      taxRulesGroupId: taxRulesGroupId,
-    );
-  }
-
-  /// Create a copy with updated fields
-  ProductDetail copyWith({
-    String? id,
-    String? name,
-    String? description,
-    String? shortDescription,
-    double? basePrice,
-    String? imageUrl,
-    List<String>? images,
-    String? reference,
-    bool? active,
-    String? categoryId,
-    String? manufacturerId,
-    String? manufacturerName,
-    String? defaultCombinationId,
-    bool? isSimpleProduct,
-    List<ProductCombination>? combinations,
-    ProductCombination? defaultCombination, // Ignored - computed property
-    int? simpleProductStock,
-    bool? onSale,
-    double? discountPercentage,
-    String? taxRulesGroupId,
-    PriceRange? priceRange, // Ignored - computed property
-  }) {
-    return ProductDetail(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      description: description ?? this.description,
-      shortDescription: shortDescription ?? this.shortDescription,
-      basePrice: basePrice ?? this.basePrice,
-      imageUrl: imageUrl ?? this.imageUrl,
-      images: images ?? this.images,
-      reference: reference ?? this.reference,
-      active: active ?? this.active,
-      categoryId: categoryId ?? this.categoryId,
-      manufacturerId: manufacturerId ?? this.manufacturerId,
-      manufacturerName: manufacturerName ?? this.manufacturerName,
-      defaultCombinationId: defaultCombinationId ?? this.defaultCombinationId,
-      isSimpleProduct: isSimpleProduct ?? this.isSimpleProduct,
-      combinations: combinations ?? this.combinations,
-      simpleProductStock: simpleProductStock ?? this.simpleProductStock,
-      onSale: onSale ?? this.onSale,
-      discountPercentage: discountPercentage ?? this.discountPercentage,
-      taxRulesGroupId: taxRulesGroupId ?? this.taxRulesGroupId,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-      'description_short': shortDescription,
-      'price': basePrice,
-      'image_url': imageUrl,
-      'images': images,
-      'reference': reference,
-      'active': active,
-      'id_category_default': categoryId,
-      'id_manufacturer': manufacturerId,
-      'manufacturer_name': manufacturerName,
-      'cache_default_attribute': defaultCombinationId,
-      'is_simple_product': isSimpleProduct,
-      'combinations': combinations.map((c) => c.toJson()).toList(),
-      'simple_product_stock': simpleProductStock,
-      'on_sale': onSale,
-      'discount_percentage': discountPercentage,
-      'id_tax_rules_group': taxRulesGroupId,
-    };
-  }
-}
-
-/// Product combination with full attribute and pricing data
-class ProductCombination {
-  final String id;
-  final String productId;
-  final String reference;
-  final double priceImpact;
-  final double finalPrice;
-  final int quantity;
-  final bool isDefault;
-  final List<CombinationAttributeDetail> attributes;
-
-  ProductCombination({
-    required this.id,
-    required this.productId,
-    required this.reference,
-    required this.priceImpact,
-    required this.finalPrice,
-    required this.quantity,
-    required this.isDefault,
-    this.attributes = const [],
-  });
-
-  bool get inStock => quantity > 0;
-
-  factory ProductCombination.fromCombination(
-    Combination combination,
-    double basePrice,
-    List<CombinationAttributeDetail> attributes,
-  ) {
-    return ProductCombination(
-      id: combination.id,
-      productId: combination.idProduct,
-      reference: combination.reference,
-      priceImpact: combination.priceImpact,
-      finalPrice: basePrice + combination.priceImpact,
-      quantity: combination.quantity,
-      isDefault: combination.defaultOn,
+      imageUrls: images,
+      features: features,
       attributes: attributes,
+      specificPrices: specificPrices,
+      groupPrices: groupPrices,
     );
   }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'id_product': productId,
-      'reference': reference,
-      'price_impact': priceImpact,
-      'final_price': finalPrice,
-      'quantity': quantity,
-      'is_default': isDefault,
-      'in_stock': inStock,
-      'attributes': attributes.map((a) => a.toJson()).toList(),
-    };
-  }
 }
 
-/// Detailed attribute information for a combination
-class CombinationAttributeDetail {
-  final String groupId;
+// Modelo para precios por grupo
+class GroupPrice {
+  final String idGroup;
   final String groupName;
-  final String valueId;
-  final String valueName;
-  final String? color;
+  final double priceWithTax;
+  final double priceWithoutTax;
+  final String? reduction;
+  final String? reductionType; // 'percentage' o 'amount'
 
-  CombinationAttributeDetail({
-    required this.groupId,
+  GroupPrice({
+    required this.idGroup,
     required this.groupName,
-    required this.valueId,
-    required this.valueName,
-    this.color,
+    required this.priceWithTax,
+    required this.priceWithoutTax,
+    this.reduction,
+    this.reductionType,
   });
 
-  Map<String, dynamic> toJson() {
-    return {
-      'group_id': groupId,
-      'group_name': groupName,
-      'value_id': valueId,
-      'value_name': valueName,
-      'color': color,
-    };
+  factory GroupPrice.fromJson(Map<String, dynamic> json) {
+    return GroupPrice(
+      idGroup: json['id_group']?.toString() ?? '',
+      groupName: json['group_name']?.toString() ?? '',
+      priceWithTax:
+          double.tryParse(json['price_with_tax']?.toString() ?? '0') ?? 0.0,
+      priceWithoutTax:
+          double.tryParse(json['price_without_tax']?.toString() ?? '0') ?? 0.0,
+      reduction: json['reduction']?.toString(),
+      reductionType: json['reduction_type']?.toString(),
+    );
   }
 }
 
-/// Price range model
-class PriceRange {
-  final double min;
-  final double max;
+class ProductFeature {
+  final String id;
+  final String idFeatureValue;
 
-  PriceRange({required this.min, required this.max});
+  ProductFeature({required this.id, required this.idFeatureValue});
 
-  bool get hasRange => min != max;
+  factory ProductFeature.fromJson(Map<String, dynamic> json) {
+    return ProductFeature(
+      id: json['id']?.toString() ?? '',
+      idFeatureValue: json['id_feature_value']?.toString() ?? '',
+    );
+  }
+}
 
-  String format() {
-    if (hasRange) {
-      return '${min.toStringAsFixed(2)} - ${max.toStringAsFixed(2)} EUR';
-    }
-    return '${min.toStringAsFixed(2)} EUR';
+class ProductAttribute {
+  final String id;
+
+  ProductAttribute({required this.id});
+
+  factory ProductAttribute.fromJson(Map<String, dynamic> json) {
+    return ProductAttribute(id: json['id']?.toString() ?? '');
+  }
+}
+
+class SpecificPrice {
+  final String id;
+  final String idProduct;
+  final String idShop;
+  final String idCurrency;
+  final String idCountry;
+  final String idGroup;
+  final String idCustomer;
+  final String price;
+  final String fromQuantity;
+  final String reduction;
+  final String reductionType;
+  final String from;
+  final String to;
+
+  SpecificPrice({
+    required this.id,
+    required this.idProduct,
+    required this.idShop,
+    required this.idCurrency,
+    required this.idCountry,
+    required this.idGroup,
+    required this.idCustomer,
+    required this.price,
+    required this.fromQuantity,
+    required this.reduction,
+    required this.reductionType,
+    required this.from,
+    required this.to,
+  });
+
+  factory SpecificPrice.fromJson(Map<String, dynamic> json) {
+    return SpecificPrice(
+      id: json['id']?.toString() ?? '',
+      idProduct: json['id_product']?.toString() ?? '',
+      idShop: json['id_shop']?.toString() ?? '',
+      idCurrency: json['id_currency']?.toString() ?? '',
+      idCountry: json['id_country']?.toString() ?? '',
+      idGroup: json['id_group']?.toString() ?? '',
+      idCustomer: json['id_customer']?.toString() ?? '',
+      price: json['price']?.toString() ?? '-1',
+      fromQuantity: json['from_quantity']?.toString() ?? '1',
+      reduction: json['reduction']?.toString() ?? '0',
+      reductionType: json['reduction_type']?.toString() ?? 'amount',
+      from: json['from']?.toString() ?? '',
+      to: json['to']?.toString() ?? '',
+    );
   }
 }

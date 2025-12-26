@@ -1,397 +1,516 @@
+// lib/screens/product/product_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:prestashop_mobile_app/config/app_theme.dart';
+import 'package:prestashop_mobile_app/models/product_detail.dart';
+import 'package:prestashop_mobile_app/providers/product_provider.dart';
+import 'package:prestashop_mobile_app/providers/cart_provider.dart';
+import 'package:prestashop_mobile_app/providers/auth_provider.dart';
+import 'package:prestashop_mobile_app/widgets/loading_widget.dart';
+import 'package:prestashop_mobile_app/widgets/error_widget.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../providers/product_provider.dart';
-import '../../providers/cart_provider.dart';
-import '../../widgets/conditional_price_widget.dart';
-import '../../models/product_detail.dart';
-import '../../services/api_service.dart';
-import '../../services/stock_service.dart';
-import '../../widgets/loading_widget.dart';
-import '../../widgets/error_widget.dart';
-import '../../config/app_theme.dart';
-import '../../config/api_config.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final String productId;
 
-  const ProductDetailScreen({super.key, required this.productId});
+  const ProductDetailScreen({
+    Key? key,
+    required this.productId,
+  }) : super(key: key);
 
   @override
   State<ProductDetailScreen> createState() => _ProductDetailScreenState();
 }
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
-  int _quantity = 1;
-  int _currentImageIndex = 0;
-  bool _isDescriptionExpanded = false;
-  final PageController _imagePageController = PageController();
-
-  bool? _realStockStatus;
-  int? _realStockQuantity;
+  int _selectedQuantity = 1;
+  bool _isAddingToCart = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<ProductProvider>(context, listen: false)
-          .fetchProductById(widget.productId);
+      _loadProduct();
     });
   }
 
-  @override
-  void dispose() {
-    _imagePageController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _checkRealStock(String productId) async {
-    try {
-      final apiService = ApiService(
-        baseUrl: ApiConfig.baseUrl,
-        apiKey: ApiConfig.apiKey,
-      );
-      final stockService = StockService(apiService);
-
-      final stocks = await stockService.getStockByProduct(productId);
-      final simpleStock = stocks.first;
-
+  Future<void> _loadProduct() async {
+    final productProvider = Provider.of<ProductProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    await productProvider.fetchProductDetail(
+      widget.productId,
+      customerId: authProvider.customer?.id,
+      customerGroupId: authProvider.customer?.idDefaultGroup,
+    );
+    
+    // Establecer cantidad inicial según el mínimo del producto
+    if (productProvider.productDetail != null) {
       setState(() {
-        _realStockQuantity = simpleStock.quantity;
-        _realStockStatus = simpleStock.quantity > 0;
-      });
-    } catch (e) {
-      debugPrint('Error checking real stock: $e');
-      setState(() {
-        _realStockStatus = false;
-        _realStockQuantity = 0;
+        _selectedQuantity = productProvider.productDetail!.effectiveMinimalQuantity;
       });
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // <-- Cambia aquí a true si el usuario está registrado
-    final bool isUserLoggedIn = true;
+  // NUEVO: Incrementa cantidad respetando múltiplos
+  void _incrementQuantity(ProductDetail product) {
+    final step = product.effectiveQuantityStep;
+    setState(() {
+      _selectedQuantity += step;
+    });
+  }
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundWhite,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: _buildCircleButton(
-          icon: Icons.arrow_back,
-          onTap: () => Navigator.pop(context),
-        ),
+  // NUEVO: Decrementa cantidad respetando múltiplos y mínimo
+  void _decrementQuantity(ProductDetail product) {
+    final step = product.effectiveQuantityStep;
+    final minQty = product.effectiveMinimalQuantity;
+    
+    setState(() {
+      final newQty = _selectedQuantity - step;
+      if (newQty >= minQty) {
+        _selectedQuantity = newQty;
+      }
+    });
+  }
+
+  // NUEVO: Valida y ajusta cantidad ingresada manualmente
+  void _onQuantityChanged(ProductDetail product, String value) {
+    final qty = int.tryParse(value);
+    if (qty == null) return;
+    
+    setState(() {
+      _selectedQuantity = product.adjustToValidQuantity(qty);
+    });
+  }
+
+  Future<void> _addToCart(ProductDetail product) async {
+    // Validar cantidad
+    if (!product.isValidQuantity(_selectedQuantity)) {
+      _showError(
+        'Cantidad no válida',
+        'La cantidad mínima es ${product.effectiveMinimalQuantity} '
+        'y debe ser múltiplo de ${product.effectiveQuantityStep}',
+      );
+      return;
+    }
+
+    setState(() => _isAddingToCart = true);
+
+    try {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      // Obtener precio según grupo del cliente
+      final customerGroupId = authProvider.customer?.idDefaultGroup ?? '1';
+      final price = product.getPriceForGroup(customerGroupId);
+      
+      await cartProvider.addItem(
+        productId: product.id,
+        quantity: _selectedQuantity,
+        price: price.toString(),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${product.name} añadido al carrito'),
+            backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'Ver carrito',
+              textColor: Colors.white,
+              onPressed: () {
+                Navigator.pushNamed(context, '/cart');
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      _showError('Error', 'No se pudo añadir al carrito: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isAddingToCart = false);
+      }
+    }
+  }
+
+  void _showError(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
         actions: [
-          _buildCircleButton(icon: Icons.favorite_border, onTap: () {}),
-          const SizedBox(width: 8),
-          _buildCircleButton(icon: Icons.share_outlined, onTap: () {}),
-          const SizedBox(width: 16),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
         ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundWhite,
       body: Consumer<ProductProvider>(
-        builder: (context, productProvider, child) {
-          if (productProvider.isLoading) {
-            return const LoadingWidget(message: 'Loading product...');
+        builder: (context, provider, _) {
+          if (provider.isLoading) {
+            return const LoadingWidget(message: 'Cargando producto...');
           }
-          if (productProvider.hasError) {
+
+          if (provider.hasError) {
             return ErrorDisplayWidget(
-              message: productProvider.error ?? 'Unknown error',
-              onRetry: () {
-                productProvider.fetchProductById(widget.productId);
-              },
+              message: provider.error ?? 'Error al cargar producto',
+              onRetry: _loadProduct,
             );
           }
 
-          final product = productProvider.selectedProduct;
-          if (product == null) return const Center(child: Text('Product not found'));
-
-          if (_realStockStatus == null &&
-              (product.inStock == false || product.quantity == 0)) {
-            _checkRealStock(widget.productId);
+          final product = provider.productDetail;
+          if (product == null) {
+            return const Center(child: Text('Producto no encontrado'));
           }
 
-          return Stack(
-            children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 100),
+          return CustomScrollView(
+            slivers: [
+              // App Bar con imagen
+              SliverAppBar(
+                expandedHeight: 300,
+                pinned: true,
+                backgroundColor: AppTheme.backgroundWhite,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: _buildProductImage(product),
+                ),
+              ),
+
+              // Contenido
+              SliverToBoxAdapter(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _ProductImageCarousel(
-                      imageUrl: product.imageUrl ?? '',
-                      images: product.images,
-                      productId: product.id,
-                      currentIndex: _currentImageIndex,
-                      pageController: _imagePageController,
-                      onPageChanged: (index) {
-                        setState(() => _currentImageIndex = index);
-                      },
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _PriceBlock(
-                            name: product.name,
-                            manufacturerName: product.manufacturerName ?? '',
-                            price: product.price,
-                            showPrice: isUserLoggedIn,
-                          ),
-                          const SizedBox(height: 24),
-                          _DescriptionSection(
-                            description: product.shortDescription,
-                            isExpanded: _isDescriptionExpanded,
-                            onToggle: () {
-                              setState(() {
-                                _isDescriptionExpanded = !_isDescriptionExpanded;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 24),
-                        ],
-                      ),
-                    ),
+                    _buildProductInfo(product),
+                    const Divider(height: 32),
+                    _buildQuantitySelector(product),
+                    const Divider(height: 32),
+                    _buildDescription(product),
+                    const SizedBox(height: 100), // Espacio para el botón flotante
                   ],
-                ),
-              ),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: _AddToCartBar(
-                  quantity: _quantity,
-                  maxQuantity: _realStockQuantity ?? 1,
-                  onQuantityChanged: (newQuantity) {
-                    setState(() => _quantity = newQuantity);
-                  },
-                  onAddToCart: () {
-                    if (!isUserLoggedIn) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please log in to buy products')),
-                      );
-                      return;
-                    }
-
-                    final cartProvider =
-                        Provider.of<CartProvider>(context, listen: false);
-                    cartProvider.addItem(
-                      product,
-                      quantity: _quantity,
-                    );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Added to cart'),
-                        behavior: SnackBarBehavior.floating,
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
                 ),
               ),
             ],
           );
         },
       ),
-    );
-  }
-
-  Widget _buildCircleButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.all(8),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: AppTheme.pureWhite,
-          shape: BoxShape.circle,
-          boxShadow: AppTheme.softShadow,
-        ),
-        child: Icon(icon, size: 20, color: AppTheme.primaryBlack),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// WIDGETS
-// ============================================================================
-
-class _ProductImageCarousel extends StatelessWidget {
-  final String imageUrl;
-  final List<String>? images;
-  final String productId;
-  final int currentIndex;
-  final PageController pageController;
-  final ValueChanged<int> onPageChanged;
-
-  const _ProductImageCarousel({
-    required this.imageUrl,
-    required this.images,
-    required this.productId,
-    required this.currentIndex,
-    required this.pageController,
-    required this.onPageChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final allImages = images ?? [];
-    if (!allImages.contains(imageUrl)) allImages.insert(0, imageUrl);
-
-    return SizedBox(
-      height: 400,
-      child: PageView.builder(
-        controller: pageController,
-        onPageChanged: onPageChanged,
-        itemCount: allImages.length,
-        itemBuilder: (context, index) {
-          return CachedNetworkImage(
-            imageUrl: allImages[index],
-            fit: BoxFit.cover,
-            placeholder: (_, __) => const Center(child: CircularProgressIndicator()),
-            errorWidget: (_, __, ___) => const Icon(Icons.error),
-          );
+      bottomNavigationBar: Consumer<ProductProvider>(
+        builder: (context, provider, _) {
+          final product = provider.productDetail;
+          if (product == null) return const SizedBox.shrink();
+          
+          return _buildAddToCartButton(product);
         },
       ),
     );
   }
-}
 
-class _PriceBlock extends StatelessWidget {
-  final String name;
-  final String manufacturerName;
-  final double price;
-  final bool showPrice;
+  Widget _buildProductImage(ProductDetail product) {
+    if (product.imageUrls.isEmpty) {
+      return Container(
+        color: Colors.grey[200],
+        child: const Icon(Icons.image, size: 100, color: Colors.grey),
+      );
+    }
 
-  const _PriceBlock({
-    required this.name,
-    required this.manufacturerName,
-    required this.price,
-    this.showPrice = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(manufacturerName, style: const TextStyle(fontSize: 14, color: Colors.grey)),
-        const SizedBox(height: 4),
-        Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        if (showPrice)
-          ConditionalPriceWidget(price: price)
-        else
-          const Text('Log in to see price', style: TextStyle(color: Colors.red)),
-      ],
-    );
-  }
-}
-
-class _DescriptionSection extends StatelessWidget {
-  final String description;
-  final bool isExpanded;
-  final VoidCallback onToggle;
-
-  const _DescriptionSection({
-    required this.description,
-    required this.isExpanded,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final displayText = isExpanded
-        ? description
-        : (description.length > 100 ? '${description.substring(0, 100)}...' : description);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(displayText),
-        const SizedBox(height: 8),
-        GestureDetector(
-          onTap: onToggle,
-          child: Text(
-            isExpanded ? 'Show less' : 'Read more',
-            style: const TextStyle(color: Colors.blue),
+    return PageView.builder(
+      itemCount: product.imageUrls.length,
+      itemBuilder: (context, index) {
+        final imageUrl = product.imageUrls[index];
+        return CachedNetworkImage(
+          imageUrl: imageUrl,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => const Center(
+            child: CircularProgressIndicator(),
           ),
-        ),
-      ],
+          errorWidget: (context, url, error) => Container(
+            color: Colors.grey[200],
+            child: const Icon(Icons.error, size: 50),
+          ),
+        );
+      },
     );
   }
-}
 
-class _AddToCartBar extends StatelessWidget {
-  final int quantity;
-  final int? maxQuantity;
-  final ValueChanged<int> onQuantityChanged;
-  final VoidCallback onAddToCart;
+  Widget _buildProductInfo(ProductDetail product) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final customerGroupId = authProvider.customer?.idDefaultGroup ?? '1';
+    final price = product.getPriceForGroup(customerGroupId);
 
-  const _AddToCartBar({
-    required this.quantity,
-    required this.maxQuantity,
-    required this.onQuantityChanged,
-    required this.onAddToCart,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.all(AppTheme.spacing3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _QuantityButton(
-            quantity: quantity,
-            maxQuantity: maxQuantity ?? 999,
-            onChanged: onQuantityChanged,
+          Text(
+            product.name,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.primaryBlack,
+            ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: onAddToCart,
-              child: const Text('Add to cart'),
+          const SizedBox(height: AppTheme.spacing2),
+          Text(
+            '€${price.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.primaryBlack,
+            ),
+          ),
+          if (product.reference.isNotEmpty) ...[
+            const SizedBox(height: AppTheme.spacing1),
+            Text(
+              'Ref: ${product.reference}',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+          const SizedBox(height: AppTheme.spacing2),
+          _buildStockStatus(product),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStockStatus(ProductDetail product) {
+    final quantity = int.tryParse(product.quantity) ?? 0;
+    final isAvailable = quantity > 0 && product.availableForOrder == '1';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacing2,
+        vertical: AppTheme.spacing1,
+      ),
+      decoration: BoxDecoration(
+        color: isAvailable ? Colors.green[50] : Colors.red[50],
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isAvailable ? Icons.check_circle : Icons.cancel,
+            color: isAvailable ? Colors.green : Colors.red,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isAvailable ? 'En stock ($quantity unidades)' : 'Agotado',
+            style: TextStyle(
+              color: isAvailable ? Colors.green[700] : Colors.red[700],
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
       ),
     );
   }
-}
 
-class _QuantityButton extends StatelessWidget {
-  final int quantity;
-  final int maxQuantity;
-  final ValueChanged<int> onChanged;
+  // NUEVO: Selector de cantidad con múltiplos
+  Widget _buildQuantitySelector(ProductDetail product) {
+    final minQty = product.effectiveMinimalQuantity;
+    final step = product.effectiveQuantityStep;
 
-  const _QuantityButton({
-    required this.quantity,
-    required this.maxQuantity,
-    required this.onChanged,
-  });
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacing3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Cantidad',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.primaryBlack,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacing2),
+          
+          // Info sobre cantidades
+          if (minQty > 1 || step > 1) ...[
+            Container(
+              padding: const EdgeInsets.all(AppTheme.spacing2),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      minQty > 1
+                          ? 'Cantidad mínima: $minQty unidades'
+                          : 'Múltiplos de $step unidades',
+                      style: const TextStyle(
+                        color: Colors.blue,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacing2),
+          ],
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          onPressed: quantity > 1 ? () => onChanged(quantity - 1) : null,
-          icon: const Icon(Icons.remove),
+          // Selector de cantidad
+          Row(
+            children: [
+              // Botón decrementar
+              IconButton(
+                onPressed: _selectedQuantity > minQty
+                    ? () => _decrementQuantity(product)
+                    : null,
+                icon: const Icon(Icons.remove),
+                style: IconButton.styleFrom(
+                  backgroundColor: _selectedQuantity > minQty
+                      ? AppTheme.primaryBlack
+                      : Colors.grey[300],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  ),
+                ),
+              ),
+
+              // Campo de texto con cantidad
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: AppTheme.spacing2),
+                  child: TextField(
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    controller: TextEditingController(text: '$_selectedQuantity'),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacing2,
+                        vertical: AppTheme.spacing1,
+                      ),
+                      suffix: Text(
+                        step > 1 ? '(×$step)' : '',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                    onChanged: (value) => _onQuantityChanged(product, value),
+                  ),
+                ),
+              ),
+
+              // Botón incrementar
+              IconButton(
+                onPressed: () => _incrementQuantity(product),
+                icon: const Icon(Icons.add),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppTheme.primaryBlack,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDescription(ProductDetail product) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacing3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Descripción',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.primaryBlack,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacing2),
+          Text(
+            product.description.replaceAll(RegExp(r'<[^>]*>'), ''),
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[700],
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAddToCartButton(ProductDetail product) {
+    final isInStock = int.tryParse(product.quantity) ?? 0 > 0;
+    final canOrder = product.availableForOrder == '1';
+
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacing3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: AppTheme.mediumShadow,
+      ),
+      child: SafeArea(
+        child: ElevatedButton(
+          onPressed: isInStock && canOrder && !_isAddingToCart
+              ? () => _addToCart(product)
+              : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.primaryBlack,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: AppTheme.spacing2),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            ),
+            minimumSize: const Size(double.infinity, 54),
+          ),
+          child: _isAddingToCart
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : Text(
+                  isInStock && canOrder
+                      ? 'Añadir al carrito ($_selectedQuantity)'
+                      : 'No disponible',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
         ),
-        Text(quantity.toString()),
-        IconButton(
-          onPressed: quantity < maxQuantity ? () => onChanged(quantity + 1) : null,
-          icon: const Icon(Icons.add),
-        ),
-      ],
+      ),
     );
   }
 }
